@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>財務三表 シミュレーター</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+:root {
+  --bg:#f2f5f8; --bg2:#eaeff4; --bg3:#dfe7ef;
+  --surface:#ffffff; --surface2:#f7f9fc;
+  --border:#dce4ed; --border2:#ccd5e0;
+  --text:#1a2535; --text2:#4a5b6e; --text3:#8fa2b4;
+  --sage:#3e7068; --navy:#2a4a7c; --umber:#7a5230;
+  --up:#1a5c3a; --down:#8b2020;
+  --shadow:0 1px 3px rgba(0,0,0,.05),0 2px 8px rgba(0,0,0,.05);
+  --shadow-up:0 -2px 20px rgba(0,0,0,.10);
+  --radius:8px; --radius2:12px;
+  --sat:env(safe-area-inset-top,0px);
+  --sar:env(safe-area-inset-right,0px);
+  --sal:env(safe-area-inset-left,0px);
+  --sab:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{font-family:'Noto Sans JP',sans-serif;background:var(--bg);color:var(--text);font-size:13px;min-height:100vh;}
+
+/* ── HEADER ── */
+.header{background:var(--surface);border-bottom:1px solid var(--border);padding:8px 14px;position:sticky;top:0;z-index:100;box-shadow:var(--shadow);}
+.header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;}
+.app-title{font-size:14px;font-weight:700;color:var(--sage);letter-spacing:.02em;display:flex;align-items:center;gap:6px;}
+.app-title svg{width:16px;height:16px;stroke-width:2;}
+.btn-reset{background:transparent;color:var(--text3);border:1px solid var(--border);padding:5px 10px;border-radius:5px;cursor:pointer;font-size:11px;font-weight:500;font-family:'Noto Sans JP',sans-serif;display:flex;align-items:center;gap:4px;transition:all .15s;min-height:32px;}
+.btn-reset svg{width:11px;height:11px;}
+.period-chip{background:var(--sage);color:#fff;border-radius:20px;padding:3px 10px;font-size:10px;font-weight:600;letter-spacing:.04em;}
+.kpi-row{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:1px;}
+.kpi-row::-webkit-scrollbar{display:none;}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;min-width:88px;flex-shrink:0;}
+.kpi-label{font-size:9px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:.07em;}
+.kpi-val{font-size:13px;font-weight:700;color:var(--text);font-family:'JetBrains Mono',monospace;margin-top:1px;}
+.kpi-val.pos{color:var(--up);}
+.kpi-val.neg{color:var(--down);}
+
+/* ── LAYOUT ── */
+.app-body{display:flex;min-height:calc(100vh - 105px);}
+.sidebar{width:228px;min-width:208px;background:var(--surface);border-right:1px solid var(--border);padding:10px;overflow-y:auto;max-height:calc(100vh - 105px);position:sticky;top:105px;}
+.lv-select-label{font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px;display:block;}
+.lv-select{width:100%;padding:7px 28px 7px 9px;border:1.5px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:12px;font-family:'Noto Sans JP',sans-serif;font-weight:600;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238fa2b4' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center;margin-bottom:7px;transition:border-color .15s;}
+.lv-select:focus{outline:none;border-color:var(--sage);}
+.lv-info-bar{border-radius:6px;padding:6px 9px;margin-bottom:9px;font-size:10px;font-weight:500;color:#fff;line-height:1.55;}
+.btn-section{margin-bottom:8px;}
+.btn-section-title{display:flex;align-items:center;gap:5px;font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;padding-bottom:3px;border-bottom:1px solid var(--border);}
+.btn-section-title svg{width:10px;height:10px;flex-shrink:0;opacity:.75;stroke-width:2.2;}
+.lv-panel{display:none;}
+.lv-panel.active{display:block;}
+.txn-btn{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;padding:7px 8px 7px 10px;margin-bottom:2px;border-radius:4px;border:none;border-left:2px solid transparent;background:transparent;color:var(--text2);cursor:pointer;font-size:11.5px;font-weight:400;font-family:'Noto Sans JP',sans-serif;transition:all .12s;line-height:1.4;min-height:36px;}
+.txn-btn:hover{background:var(--bg2);border-left-color:var(--sage);color:var(--text);}
+.txn-btn .amt{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text3);background:var(--bg3);padding:1px 5px;border-radius:3px;white-space:nowrap;flex-shrink:0;}
+
+/* ── MAIN ── */
+.main{flex:1;padding:10px;overflow-x:hidden;min-width:0;}
+.journal-strip{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--sage);border-radius:var(--radius);padding:9px 13px;margin-bottom:7px;min-height:48px;}
+.j-title{font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;}
+.journal-entry{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text);}
+.journal-note{font-size:11px;color:var(--text2);margin-top:3px;line-height:1.55;}
+.dr{color:var(--up);font-weight:600;}
+.cr{color:var(--down);font-weight:600;}
+.eq-bar{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:6px 12px;margin-bottom:7px;display:flex;align-items:center;gap:10px;font-size:11px;flex-wrap:wrap;}
+.eq-ok{color:var(--sage);font-weight:600;}
+.eq-ng{color:var(--down);font-weight:600;}
+.eq-formula{color:var(--text2);font-family:'JetBrains Mono',monospace;font-size:11px;}
+
+/* ── STATEMENT TABS (mobile only) ── */
+.stmt-tabs{display:none;}
+
+/* ── STATEMENTS ── */
+.stmt-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;}
+@media(max-width:1100px){.stmt-grid{grid-template-columns:1fr 1fr;}}
+.stmt-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);overflow:hidden;box-shadow:var(--shadow);}
+.stmt-card.pulse{animation:pulse .4s ease;}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(62,112,104,.3)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:var(--shadow)}}
+.stmt-head{padding:8px 12px;font-size:11px;font-weight:700;color:#fff;letter-spacing:.03em;display:flex;align-items:center;gap:6px;}
+.stmt-head svg{width:13px;height:13px;opacity:.85;stroke-width:2.2;}
+.stmt-head.bs{background:var(--sage);}
+.stmt-head.pl{background:var(--navy);}
+.stmt-head.cf{background:var(--umber);}
+.stmt-body{padding:6px;}
+
+/* ── WC ── */
+.wc-bar{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.wc-title{font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;}
+.wc-metrics{display:flex;gap:6px;flex:1;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.wc-metrics::-webkit-scrollbar{display:none;}
+.wc-m{background:var(--bg2);border:1px solid var(--border);border-radius:5px;padding:4px 9px;display:flex;flex-direction:column;align-items:center;min-width:80px;flex-shrink:0;}
+.wc-m-lbl{font-size:8.5px;color:var(--text3);font-weight:600;white-space:nowrap;}
+.wc-m-val{font-size:12px;font-weight:700;font-family:'JetBrains Mono',monospace;margin-top:1px;}
+.wc-m-val.warn{color:var(--umber);}
+.wc-m-val.ok{color:var(--sage);}
+.wc-params{display:flex;gap:7px;align-items:center;flex-wrap:wrap;}
+.wc-params label{font-size:9.5px;color:var(--text3);display:flex;align-items:center;gap:3px;white-space:nowrap;}
+.wc-params input{width:42px;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 4px;font-size:11px;text-align:center;}
+
+/* ── EQUITY ── */
+.eq-struct{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 13px;margin-bottom:8px;}
+.eq-struct h4{font-size:9px;font-weight:700;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:.08em;}
+.eq-bar-track{height:7px;background:var(--bg3);border-radius:4px;overflow:hidden;margin-bottom:4px;}
+.eq-bar-fill{height:100%;background:var(--sage);transition:width .45s cubic-bezier(.4,0,.2,1);}
+.eq-labels{display:flex;justify-content:space-between;font-size:9.5px;color:var(--text3);}
+
+/* ── TABLES ── */
+table.stmt-tbl{width:100%;border-collapse:collapse;}
+table.stmt-tbl tr{border-bottom:1px solid var(--border);}
+table.stmt-tbl tr:last-child{border-bottom:none;}
+table.stmt-tbl td{padding:4px 5px;font-size:12px;line-height:1.4;}
+table.stmt-tbl td:last-child{text-align:right;font-family:'JetBrains Mono',monospace;font-weight:600;font-size:11px;white-space:nowrap;}
+.row-group{background:var(--bg2);}
+.row-group td{font-weight:700;font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;}
+.row-total td{font-weight:700;background:var(--bg3);font-size:12px;}
+.row-subtotal td{font-weight:600;background:var(--bg2);font-size:11px;color:var(--text2);}
+.val-pos{color:var(--up);}
+.val-neg{color:var(--down);}
+.val-zero{color:var(--text3);}
+.indent1{padding-left:14px!important;}
+
+/* ── LOG ── */
+.log-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:9px 13px;}
+.log-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.log-title{font-size:11px;font-weight:700;color:var(--text2);}
+.btn-clear{background:transparent;border:1px solid var(--border);color:var(--text3);padding:3px 8px;border-radius:4px;cursor:pointer;font-size:10px;}
+.log-list{max-height:140px;overflow-y:auto;}
+.log-card{display:flex;align-items:flex-start;gap:7px;padding:4px 0;border-bottom:1px solid var(--border2);font-size:10.5px;}
+.log-card:last-child{border-bottom:none;}
+.log-dot{width:6px;height:6px;border-radius:50%;margin-top:3px;flex-shrink:0;}
+.log-meta{color:var(--text3);font-size:9.5px;margin-right:3px;white-space:nowrap;font-family:'JetBrains Mono',monospace;}
+.log-txt{color:var(--text2);}
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   MOBILE  ≤ 767px
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+@media(max-width:767px){
+  body{padding-bottom:calc(56px + var(--sab) + 72px);}
+
+  /* Header */
+  .header{padding:8px 12px 6px;}
+  .app-title{font-size:13px;}
+
+  /* Sidebar: hide on mobile */
+  .sidebar{display:none;}
+  .desk-only{display:none;}
+
+  /* Layout */
+  .app-body{display:block;}
+  .main{padding:8px 10px 6px;}
+
+  /* Journal: fixed above bottom bar */
+  .journal-strip{
+    position:fixed;
+    bottom:calc(56px + var(--sab));
+    left:0;right:0;z-index:90;
+    margin:0;border-radius:0;
+    border-left:3px solid var(--sage);
+    border-right:none;border-bottom:none;
+    border-top:1px solid var(--border);
+    padding:7px 12px 6px;min-height:auto;
+    box-shadow:var(--shadow-up);
+  }
+  .journal-note{max-height:2.8em;overflow:hidden;}
+
+  /* Statement tabs */
+  .stmt-tabs{
+    display:flex;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    margin-bottom:8px;
+    overflow:hidden;
+    box-shadow:var(--shadow);
+  }
+  .stmt-tab{
+    flex:1;padding:10px 0;
+    background:transparent;border:none;
+    font-size:11px;font-weight:600;
+    font-family:'Noto Sans JP',sans-serif;
+    color:var(--text3);cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;gap:3px;
+    border-bottom:2px solid transparent;transition:all .15s;
+    min-height:50px;
+  }
+  .stmt-tab svg{width:16px;height:16px;stroke-width:2;}
+  .stmt-tab.tab-bs.active{color:var(--sage);border-bottom-color:var(--sage);background:rgba(62,112,104,.05);}
+  .stmt-tab.tab-pl.active{color:var(--navy);border-bottom-color:var(--navy);background:rgba(42,74,124,.05);}
+  .stmt-tab.tab-cf.active{color:var(--umber);border-bottom-color:var(--umber);background:rgba(122,82,48,.05);}
+
+  /* Statement grid: single visible at a time */
+  .stmt-grid{display:block;margin-bottom:8px;}
+  .stmt-card{display:none;}
+  .stmt-card.mob-active{display:block;}
+
+  /* WC bar */
+  .wc-bar{flex-direction:column;align-items:flex-start;gap:7px;padding:8px 10px;}
+  .wc-metrics{width:100%;}
+  .wc-params{width:100%;}
+
+  /* Bottom bar */
+  .mob-bar{
+    position:fixed;bottom:0;left:0;right:0;
+    height:calc(56px + var(--sab));
+    padding-bottom:var(--sab);
+    background:var(--surface);
+    border-top:1px solid var(--border);
+    box-shadow:var(--shadow-up);
+    z-index:95;
+    display:flex;align-items:center;
+    padding-left:14px;padding-right:14px;gap:10px;
+  }
+  .mob-txn-btn{
+    flex:1;height:40px;
+    background:var(--sage);color:#fff;
+    border:none;border-radius:8px;
+    font-size:14px;font-weight:700;
+    font-family:'Noto Sans JP',sans-serif;
+    cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:7px;
+    letter-spacing:.02em;
+    box-shadow:0 2px 8px rgba(62,112,104,.4);
+  }
+  .mob-txn-btn svg{width:16px;height:16px;stroke-width:2.2;}
+  .mob-status{font-size:11px;font-weight:600;color:var(--sage);white-space:nowrap;}
+  .mob-status.ng{color:var(--down);}
+  .mob-reset-btn{
+    width:40px;height:40px;flex-shrink:0;
+    background:var(--bg2);border:1px solid var(--border);
+    border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;color:var(--text3);
+  }
+  .mob-reset-btn svg{width:15px;height:15px;}
+
+  /* Overlay */
+  .mob-overlay{
+    position:fixed;inset:0;
+    background:rgba(26,37,53,.5);
+    z-index:198;
+    opacity:0;pointer-events:none;
+    transition:opacity .3s;
+    -webkit-backdrop-filter:blur(3px);
+    backdrop-filter:blur(3px);
+  }
+  .mob-overlay.open{opacity:1;pointer-events:all;}
+
+  /* Drawer */
+  .mob-drawer{
+    position:fixed;bottom:0;left:0;right:0;
+    height:80vh;
+    background:var(--surface);
+    border-radius:20px 20px 0 0;
+    z-index:200;
+    transform:translateY(100%);
+    transition:transform .32s cubic-bezier(.4,0,.2,1);
+    display:flex;flex-direction:column;
+    overflow:hidden;
+    box-shadow:0 -4px 30px rgba(0,0,0,.15);
+  }
+  .mob-drawer.open{transform:translateY(0);}
+  .drawer-handle{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:10px auto 0;flex-shrink:0;}
+  .drawer-header{display:flex;align-items:center;gap:8px;padding:10px 14px 8px;flex-shrink:0;border-bottom:1px solid var(--border);}
+  .drawer-lv-label{font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;}
+  .drawer-lv-select{
+    flex:1;padding:7px 28px 7px 10px;
+    border:1.5px solid var(--border);border-radius:6px;
+    background:var(--surface2);color:var(--text);
+    font-size:13px;font-family:'Noto Sans JP',sans-serif;font-weight:600;
+    cursor:pointer;appearance:none;-webkit-appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238fa2b4' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 9px center;
+  }
+  .drawer-close{
+    width:36px;height:36px;flex-shrink:0;
+    background:var(--bg2);border:1px solid var(--border);
+    border-radius:50%;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--text3);
+  }
+  .drawer-close svg{width:15px;height:15px;}
+  .drawer-lv-info{
+    padding:7px 14px;flex-shrink:0;
+    font-size:10px;font-weight:500;color:#fff;line-height:1.5;
+  }
+  .drawer-scroll{
+    flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    padding:6px 12px;
+    padding-bottom:calc(16px + var(--sab));
+  }
+  /* Bigger touch targets in drawer */
+  .drawer-scroll .txn-btn{
+    min-height:48px;padding:12px 10px 12px 14px;
+    font-size:13.5px;
+    border-radius:8px;border:1px solid var(--border);
+    background:var(--surface2);
+    margin-bottom:4px;
+    border-left:2px solid transparent;
+    transition:background .12s, border-left-color .12s;
+  }
+  .drawer-scroll .txn-btn:active{background:var(--sage-light, #ebf3f0);border-left-color:var(--sage);}
+  .drawer-scroll .txn-btn .amt{font-size:12px;padding:3px 8px;border-radius:4px;}
+  .drawer-scroll .btn-section{margin-bottom:6px;}
+  .drawer-scroll .btn-section-title{
+    font-size:10px;padding:10px 0 5px;
+    margin-bottom:4px;
+    border-bottom:1px solid var(--border);
+    color:var(--text2);font-weight:700;
+  }
+  .drawer-scroll .btn-section-title svg{width:12px;height:12px;opacity:.8;}
+}
+
+/* Desktop: hide mobile elements */
+@media(min-width:768px){
+  .mob-bar,.mob-drawer,.mob-overlay{display:none;}
+  .stmt-card{display:block !important;}
+}
+</style>
+</head>
+<body>
+
+<!-- ━━ HEADER ━━ -->
+<div class="header">
+  <div class="header-top">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span class="app-title"><i data-lucide="bar-chart-3"></i>財務三表</span>
+      <span class="period-chip" id="period-chip">第1期</span>
+    </div>
+    <button class="btn-reset desk-only" onclick="resetAll()">
+      <i data-lucide="rotate-ccw"></i>リセット
+    </button>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-label">総資産</div><div class="kpi-val" id="kpi-ta">¥10,000</div></div>
+    <div class="kpi"><div class="kpi-label">売上高</div><div class="kpi-val" id="kpi-rev">—</div></div>
+    <div class="kpi"><div class="kpi-label">純利益</div><div class="kpi-val" id="kpi-ni">—</div></div>
+    <div class="kpi"><div class="kpi-label">現金</div><div class="kpi-val" id="kpi-cash">¥10,000</div></div>
+    <div class="kpi"><div class="kpi-label">自己資本比率</div><div class="kpi-val" id="kpi-er">100.0%</div></div>
+    <div class="kpi"><div class="kpi-label">利益剰余金</div><div class="kpi-val" id="kpi-re">—</div></div>
+  </div>
+</div>
+
+<!-- ━━ APP BODY ━━ -->
+<div class="app-body">
+
+  <!-- Desktop sidebar -->
+  <div class="sidebar desk-only">
+    <span class="lv-select-label">学習レベル</span>
+    <select class="lv-select" id="lv-select" onchange="switchLevel(parseInt(this.value))">
+      <option value="1">Lv.1 ── 入門</option>
+      <option value="2">Lv.2 ── 初級</option>
+      <option value="3">Lv.3 ── 中級</option>
+      <option value="4">Lv.4 ── 準上級</option>
+      <option value="5">Lv.5 ── 上級</option>
+      <option value="6">Lv.6 ── 超上級</option>
+      <option value="7">Lv.7 ── エキスパート</option>
+      <option value="8">Lv.8 ── プロ</option>
+      <option value="9">Lv.9 ── マスター</option>
+      <option value="10">Lv.10 ── 総復習</option>
+    </select>
+    <div class="lv-info-bar" id="lv-info-bar"></div>
+    <div id="panels-container"></div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Journal: desktop inline, mobile fixed -->
+    <div class="journal-strip" id="journal-strip">
+      <div class="j-title">仕訳 / 解説</div>
+      <div class="journal-entry" id="journal-entry">（取引ボタンを押すと仕訳が表示されます）</div>
+      <div class="journal-note" id="journal-note"></div>
+    </div>
+
+    <div class="eq-bar">
+      <span id="eq-status" class="eq-ok">BS 均衡</span>
+      <span class="eq-formula" id="eq-formula">資産 ¥10,000 ＝ 負債 ¥0 ＋ 純資産 ¥10,000</span>
+    </div>
+
+    <!-- Statement tabs (mobile only) -->
+    <div class="stmt-tabs" id="stmt-tabs">
+      <button class="stmt-tab tab-bs active" id="tab-bs" onclick="switchStmt('bs')">
+        <i data-lucide="table-2"></i>BS
+      </button>
+      <button class="stmt-tab tab-pl" id="tab-pl" onclick="switchStmt('pl')">
+        <i data-lucide="trending-up"></i>PL
+      </button>
+      <button class="stmt-tab tab-cf" id="tab-cf" onclick="switchStmt('cf')">
+        <i data-lucide="activity"></i>CF
+      </button>
+    </div>
+
+    <div class="stmt-grid">
+      <div class="stmt-card mob-active" id="card-bs">
+        <div class="stmt-head bs"><i data-lucide="table-2"></i>貸借対照表（BS）</div>
+        <div class="stmt-body" id="bs-body"></div>
+      </div>
+      <div class="stmt-card" id="card-pl">
+        <div class="stmt-head pl"><i data-lucide="trending-up"></i>損益計算書（PL）</div>
+        <div class="stmt-body" id="pl-body"></div>
+      </div>
+      <div class="stmt-card" id="card-cf">
+        <div class="stmt-head cf"><i data-lucide="activity"></i>キャッシュフロー計算書（CF）</div>
+        <div class="stmt-body" id="cf-body"></div>
+      </div>
+    </div>
+
+    <div class="wc-bar">
+      <div class="wc-title">運転資本管理</div>
+      <div class="wc-metrics">
+        <div class="wc-m"><div class="wc-m-lbl">AR 売掛金</div><div class="wc-m-val" id="wc-ar">¥0</div></div>
+        <div class="wc-m"><div class="wc-m-lbl">INV 棚卸資産</div><div class="wc-m-val" id="wc-inv">¥0</div></div>
+        <div class="wc-m"><div class="wc-m-lbl">AP 買掛金</div><div class="wc-m-val" id="wc-ap">¥0</div></div>
+        <div class="wc-m"><div class="wc-m-lbl">DSO 売掛回転</div><div class="wc-m-val" id="wc-dso">—</div></div>
+        <div class="wc-m"><div class="wc-m-lbl">DPO 買掛回転</div><div class="wc-m-val" id="wc-dpo">—</div></div>
+        <div class="wc-m"><div class="wc-m-lbl">DIO 在庫回転</div><div class="wc-m-val" id="wc-dio">—</div></div>
+        <div class="wc-m"><div class="wc-m-lbl">CCC 現金循環</div><div class="wc-m-val" id="wc-ccc">—</div></div>
+      </div>
+      <div class="wc-params">
+        <label>目標DSO <input type="number" id="tgt-dso" value="30" min="1" max="365"></label>
+        <label>目標DPO <input type="number" id="tgt-dpo" value="45" min="1" max="365"></label>
+        <label>目標DIO <input type="number" id="tgt-dio" value="60" min="1" max="365"></label>
+      </div>
+    </div>
+
+    <div class="eq-struct">
+      <h4>資本構成 — 自己資本 vs 負債</h4>
+      <div class="eq-bar-track"><div class="eq-bar-fill" id="eq-bar-fill" style="width:100%"></div></div>
+      <div class="eq-labels">
+        <span id="eq-lbl-e">自己資本 ¥10,000 (100%)</span>
+        <span id="eq-lbl-d">負債 ¥0 (0%)</span>
+      </div>
+    </div>
+
+    <div class="log-section">
+      <div class="log-head">
+        <span class="log-title">取引ログ</span>
+        <button class="btn-clear" onclick="clearLog()">消去</button>
+      </div>
+      <div class="log-list" id="log-list">（取引はここに記録されます）</div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app-body -->
+
+<!-- ━━ MOBILE UI ━━ -->
+
+<!-- Bottom bar -->
+<div class="mob-bar">
+  <button class="mob-txn-btn" onclick="openDrawer()">
+    <i data-lucide="layers"></i>取引する
+  </button>
+  <span class="mob-status" id="mob-status">均衡</span>
+  <button class="mob-reset-btn" onclick="resetAll()"><i data-lucide="rotate-ccw"></i></button>
+</div>
+
+<!-- Overlay -->
+<div class="mob-overlay" id="mob-overlay" onclick="closeDrawer()"></div>
+
+<!-- Drawer -->
+<div class="mob-drawer" id="mob-drawer">
+  <div class="drawer-handle"></div>
+  <div class="drawer-header">
+    <span class="drawer-lv-label">LEVEL</span>
+    <select class="drawer-lv-select" id="lv-select-mob" onchange="switchLevel(parseInt(this.value))">
+      <option value="1">Lv.1 ── 入門</option>
+      <option value="2">Lv.2 ── 初級</option>
+      <option value="3">Lv.3 ── 中級</option>
+      <option value="4">Lv.4 ── 準上級</option>
+      <option value="5">Lv.5 ── 上級</option>
+      <option value="6">Lv.6 ── 超上級</option>
+      <option value="7">Lv.7 ── エキスパート</option>
+      <option value="8">Lv.8 ── プロ</option>
+      <option value="9">Lv.9 ── マスター</option>
+      <option value="10">Lv.10 ── 総復習</option>
+    </select>
+    <button class="drawer-close" onclick="closeDrawer()"><i data-lucide="x"></i></button>
+  </div>
+  <div class="drawer-lv-info" id="drawer-lv-info" style="background:var(--sage)"></div>
+  <div class="drawer-scroll" id="drawer-panels-container"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
