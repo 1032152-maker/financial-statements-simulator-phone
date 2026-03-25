@@ -325,6 +325,12 @@ table.bs-impact td:first-child{font-family:'Noto Sans JP',sans-serif;font-size:1
 table.bs-impact tr:last-child td{border-bottom:none;font-weight:700;background:var(--bg2);}
 .divider{height:1px;background:var(--border);margin:12px 0;}
 .placeholder{text-align:center;color:var(--text3);padding:20px;font-size:12px;}
+.wacc-flash{animation:waccFlash .5s ease;}
+@keyframes waccFlash{
+  0%{box-shadow:0 0 0 0 rgba(42,74,124,.4);}
+  50%{box-shadow:0 0 0 8px rgba(42,74,124,.15);}
+  100%{box-shadow:none;}
+}
 
 /* ─────────────────────────────
    MOBILE
@@ -804,6 +810,12 @@ function calcWACC(){
   document.getElementById('kd-r').value=document.getElementById('kd').value;
   document.getElementById('tax-r').value=document.getElementById('taxrate').value;
   document.getElementById('ev-r').value=document.getElementById('ev-ratio').value;
+
+  // フラッシュフィードバック
+  var bar=document.getElementById('wacc-bar');
+  bar.classList.remove('wacc-flash');
+  void bar.offsetWidth;
+  bar.classList.add('wacc-flash');
 
   return wacc;
 }
