@@ -28,7 +28,6 @@ function MK(){
 var S=MK();
 var txnCount=0;
 var currentLv=1;
-var activeMobStmt='bs'; // mobile active statement tab
 
 // =====================================================
 // COMPUTED
@@ -379,7 +378,6 @@ function updateWC(s,cv){
 function renderAll(){
   var cv=C(S);
   rBS(S,cv);rPL(S,cv);rCF(S,cv);updateWC(S,cv);
-
   document.getElementById('kpi-ta').textContent=fmt(cv.totA);
   document.getElementById('kpi-rev').textContent=fmt(S.sales);
   var niEl=document.getElementById('kpi-ni');
@@ -392,90 +390,39 @@ function renderAll(){
   erEl.className='kpi-val'+(er>=50?' pos':er<0?' neg':'');
   document.getElementById('kpi-re').textContent=fmt(S.retained+cv.ni);
   document.getElementById('period-chip').textContent='第'+S.period+'期';
-
   var diff=Math.abs(cv.totA-(cv.totL+cv.totEq));
-  var balanced=diff<1;
   var eqEl=document.getElementById('eq-status');
   var fmEl=document.getElementById('eq-formula');
-  if(balanced){eqEl.textContent='BS 均衡';eqEl.className='eq-ok';}
+  if(diff<1){eqEl.textContent='BS 均衡';eqEl.className='eq-ok';}
   else{eqEl.textContent='BS 不均衡  Δ¥'+Math.round(diff);eqEl.className='eq-ng';}
   fmEl.textContent='資産 '+fmt(cv.totA)+' ＝ 負債 '+fmt(cv.totL)+' ＋ 純資産 '+fmt(cv.totEq);
-
-  // Mobile bottom status
-  var mobSt=document.getElementById('mob-status');
-  if(mobSt){
-    mobSt.textContent=balanced?'均衡':'不均衡';
-    mobSt.className='mob-status'+(balanced?'':' ng');
-  }
-
   var ep=cv.totA>0?Math.max(0,Math.min(1,cv.totEq/cv.totA)):1;
   document.getElementById('eq-bar-fill').style.width=(ep*100)+'%';
   document.getElementById('eq-lbl-e').textContent='自己資本 '+fmt(cv.totEq)+' ('+pct(ep)+')';
   document.getElementById('eq-lbl-d').textContent='負債 '+fmt(cv.totL)+' ('+pct(Math.max(0,1-ep))+')';
-
   ['card-bs','card-pl','card-cf'].forEach(function(id){
     var el=document.getElementById(id);
     el.classList.remove('pulse');void el.offsetWidth;el.classList.add('pulse');
   });
+  updateDuPont(); // 
 }
 
 // =====================================================
-// MOBILE: Statement tabs
+// EXECUTE（実際に状態を変更して画面を更新する）
 // =====================================================
-function switchStmt(which){
-  activeMobStmt=which;
-  // hide all cards
-  ['bs','pl','cf'].forEach(function(id){
-    var card=document.getElementById('card-'+id);
-    if(card){
-      card.classList.remove('mob-active');
-    }
-    var tab=document.getElementById('tab-'+id);
-    if(tab){
-      tab.className='stmt-tab tab-'+id;
-    }
-  });
-  // show selected
-  var activeCard=document.getElementById('card-'+which);
-  if(activeCard) activeCard.classList.add('mob-active');
-  var activeTab=document.getElementById('tab-'+which);
-  if(activeTab) activeTab.className='stmt-tab tab-'+which+' active';
-}
-
-// =====================================================
-// MOBILE: Drawer
-// =====================================================
-function openDrawer(){
-  document.getElementById('mob-drawer').classList.add('open');
-  document.getElementById('mob-overlay').classList.add('open');
-  document.body.style.overflow='hidden';
-}
-function closeDrawer(){
-  document.getElementById('mob-drawer').classList.remove('open');
-  document.getElementById('mob-overlay').classList.remove('open');
-  document.body.style.overflow='';
-}
-
-// =====================================================
-// GO
-// =====================================================
-function go(key){
+function execute(key){
   if(!T[key]){console.error('Unknown tx:',key);return;}
   var result=T[key](S);
   if(!result){
-    setJournal('<span style="color:var(--text3)">（前提条件が満たされていません）</span>','');
+    document.getElementById('journal-entry').innerHTML='<span style="color:var(--text3)">（この取引を実行するための前提条件が満たされていません）</span>';
+    document.getElementById('journal-note').textContent='';
     return;
   }
   txnCount++;
-  var entry='<span class="dr">（借）'+result.dr+'</span>　<span class="cr">（貸）'+result.cr+'</span>';
-  setJournal(entry,result.note);
+  document.getElementById('journal-entry').innerHTML=
+    '<span class="dr">（借）'+result.dr+'</span>　<span class="cr">（貸）'+result.cr+'</span>';
+  document.getElementById('journal-note').textContent=result.note;
   renderAll();
-
-  // Mobile: close drawer after tap, brief delay for UX feedback
-  if(window.innerWidth<=767){
-    setTimeout(closeDrawer,180);
-  }
-
   var color=LV_COLORS[currentLv]||'#8fa2b4';
   var ll=document.getElementById('log-list');
   if(ll.textContent.indexOf('取引はここ')>=0)ll.innerHTML='';
@@ -486,26 +433,84 @@ function go(key){
   ll.insertBefore(d,ll.firstChild);
 }
 
-function setJournal(entry,note){
-  document.getElementById('journal-entry').innerHTML=entry;
-  document.getElementById('journal-note').textContent=note;
+// =====================================================
+// GO（補助モードチェック → モーダル or 即実行）
+// =====================================================
+function go(key){
+  if(!T[key]){console.error('Unknown tx:',key);return;}
+
+  if(assistMode){
+    // 状態を汚さずプレビュー用コピーで実行
+    var sCopy=JSON.parse(JSON.stringify(S));
+    var preview=T[key](sCopy);
+    if(!preview){
+      document.getElementById('journal-entry').innerHTML='<span style="color:var(--text3)">（前提条件が満たされていません）</span>';
+      return;
+    }
+    pendingKey=key;
+
+    // ボタンのラベルを取得
+    var btnLabel=key;
+    document.querySelectorAll('#panels-container .txn-btn, #drawer-panels-container .txn-btn').forEach(function(btn){
+      if((btn.getAttribute('onclick')||'').indexOf("go('"+key+"')")>=0){
+        var span=btn.querySelector('span:first-child');
+        if(span) btnLabel=span.textContent;
+      }
+    });
+    document.getElementById('mod-title').textContent=btnLabel;
+
+    // 仕訳
+    document.getElementById('mod-jnl').innerHTML=
+      '<span class="mod-dr">（借）'+preview.dr+'</span><br>'
+      +'<span class="mod-cr">（貸）'+preview.cr+'</span>';
+
+    // なぜ
+    document.getElementById('mod-why').textContent=preview.note;
+
+    // 三表への影響（実行前後の差分）
+    var cvB=C(S), cvA=C(sCopy);
+    var bsDiff=cvA.totA-cvB.totA;
+    var niDiff=cvA.ni-cvB.ni;
+    var cfDiff=(sCopy.cf_ops+sCopy.cf_inv+sCopy.cf_fin)-(S.cf_ops+S.cf_inv+S.cf_fin);
+
+    var bsEl=document.getElementById('mod-bs');
+    bsEl.textContent=bsDiff===0?'変動なし':'総資産 '+(bsDiff>0?'＋':'')+fmt(bsDiff)+' 変動';
+    bsEl.className='mod-impact-val'+(bsDiff>0?' ipos':bsDiff<0?' ineg':' inone');
+
+    var plEl=document.getElementById('mod-pl');
+    plEl.textContent=niDiff===0?'影響なし':'当期純利益 '+(niDiff>0?'＋':'')+fmt(niDiff)+' 変動';
+    plEl.className='mod-impact-val'+(niDiff>0?' ipos':niDiff<0?' ineg':' inone');
+
+    var cfEl=document.getElementById('mod-cf');
+    cfEl.textContent=cfDiff===0?'変動なし':'合計CF '+(cfDiff>0?'＋':'')+fmt(cfDiff)+' 変動';
+    cfEl.className='mod-impact-val'+(cfDiff>0?' ipos':cfDiff<0?' ineg':' inone');
+
+    // 実務ポイント
+    document.getElementById('mod-tip').innerHTML='<b>'+btnLabel+'</b>：'+preview.note;
+
+    document.getElementById('assist-modal-overlay').classList.add('open');
+    return;
+  }
+
+  execute(key); // 補助モードOFFなら即実行
 }
 
 // =====================================================
 // LEVEL
 // =====================================================
 var LV_META=[null,
-  {name:'Lv.1  入門',     desc:'現金の動き・借方貸方・利益のしくみを体感しましょう。',        color:'#3e7068'},
-  {name:'Lv.2  初級',     desc:'掛売買・前払・前受・未払など発生主義会計の基礎。',            color:'#357062'},
-  {name:'Lv.3  中級',     desc:'固定資産・減価償却・借入金など BS の複雑な構造を理解。',      color:'#2c5a55'},
-  {name:'Lv.4  準上級',   desc:'社債・増資・自己株式・投資有価証券など財務取引の全体像。',    color:'#2a4a7c'},
-  {name:'Lv.5  上級',     desc:'のれん・減損・税効果・為替・棚卸評価など高度な会計処理。',    color:'#243f6b'},
-  {name:'Lv.6  超上級',   desc:'Lv1〜5 全科目統合。複合取引と連鎖する財務三表の動きを確認。',color:'#1e345a'},
-  {name:'Lv.7  エキスパート',desc:'為替・税効果・M&A・引当金の高度な論点を習得。',             color:'#1a2d4e'},
-  {name:'Lv.8  プロ',     desc:'収益認識・リース・金融商品・連結会計のプロレベル処理。',      color:'#7a5230'},
-  {name:'Lv.9  マスター', desc:'IFRS・持分法・非支配株主・ストックオプションなど国際水準。',  color:'#5a3a22'},
-  {name:'Lv.10 総復習',   desc:'Lv1〜9 の全勘定科目・全取引を網羅。財務三表の完全制覇。',    color:'#1a1e2e'}
+  {name:'Lv.1  入門',     desc:'現金の動き・借方貸方・利益のしくみを体感しましょう。',    color:'#3e7068'},
+  {name:'Lv.2  初級',     desc:'掛売買・前払・前受・未払など発生主義会計の基礎。',         color:'#357062'},
+  {name:'Lv.3  中級',     desc:'固定資産・減価償却・借入金など BS の複雑な構造を理解。',   color:'#2c5a55'},
+  {name:'Lv.4  準上級',   desc:'社債・増資・自己株式・投資有価証券など財務取引の全体像。', color:'#2a4a7c'},
+  {name:'Lv.5  上級',     desc:'のれん・減損・税効果・為替・棚卸評価など高度な会計処理。', color:'#243f6b'},
+  {name:'Lv.6  超上級',   desc:'Lv1〜5 全科目統合。複合取引と連鎖する財務三表の動きを確認。', color:'#1e345a'},
+  {name:'Lv.7  エキスパート', desc:'為替・税効果・M&A・引当金の高度な論点を習得。',         color:'#1a2d4e'},
+  {name:'Lv.8  プロ',     desc:'収益認識・リース・金融商品・連結会計のプロレベル処理。',   color:'#7a5230'},
+  {name:'Lv.9  マスター', desc:'IFRS・持分法・非支配株主・ストックオプションなど国際水準。', color:'#5a3a22'},
+  {name:'Lv.10 総復習',   desc:'Lv1〜9 の全勘定科目・全取引を網羅。財務三表の完全制覇。',  color:'#1a1e2e'}
 ];
+
 var LV_COLORS=['',
   '#3e7068','#357062','#2c5a55',
   '#2a4a7c','#243f6b','#1e345a',
@@ -514,424 +519,699 @@ var LV_COLORS=['',
 
 function switchLevel(lv){
   lv=parseInt(lv);currentLv=lv;
-  // desktop panels
   document.querySelectorAll('.lv-panel').forEach(function(p){p.classList.remove('active');});
   var target=document.getElementById('panel-'+lv);
-  if(target) target.classList.add('active');
-  // mobile drawer panels
-  document.querySelectorAll('.drawer-lv-panel').forEach(function(p){p.classList.remove('active');});
-  var drawerTarget=document.getElementById('drawer-panel-'+lv);
-  if(drawerTarget) drawerTarget.classList.add('active');
-
+  if(target)target.classList.add('active');
   var meta=LV_META[lv];
-  if(meta){
-    // desktop info bar
-    var bar=document.getElementById('lv-info-bar');
-    if(bar){bar.style.background=meta.color;bar.textContent=meta.name+'  —  '+meta.desc;}
-    // mobile drawer info
-    var dbar=document.getElementById('drawer-lv-info');
-    if(dbar){dbar.style.background=meta.color;dbar.textContent=meta.name+'  —  '+meta.desc;}
-  }
-  // sync selects
-  var ds=document.getElementById('lv-select');
-  if(ds) ds.value=lv;
-  var ms=document.getElementById('lv-select-mob');
-  if(ms) ms.value=lv;
+  var bar=document.getElementById('lv-info-bar');
+  if(meta){bar.style.background=meta.color;bar.textContent=meta.name+'  —  '+meta.desc;}
+  document.getElementById('lv-select').value=lv;
+  var mobSel=document.getElementById('lv-select-mob');
+  if(mobSel) mobSel.value=lv;
 }
 
 function resetAll(){
   if(!confirm('全データをリセットしますか？'))return;
   S=MK();txnCount=0;
-  setJournal('（取引ボタンを押すと仕訳が表示されます）','');
+  document.getElementById('journal-entry').textContent='（取引ボタンを押すと仕訳が表示されます）';
+  document.getElementById('journal-note').textContent='';
   document.getElementById('log-list').innerHTML='（取引はここに記録されます）';
-  closeDrawer();
   renderAll();
 }
 function clearLog(){document.getElementById('log-list').innerHTML='（ログを消去しました）';}
 
 // =====================================================
-// BUILD PANELS (desktop + mobile drawer)
+// BUILD PANELS
 // =====================================================
-var PANELS={
-  1:[
-    {title:'売上・収益',icon:'trending-up',btns:[
-      ['cash_sales','現金売上','¥5,000']
-    ]},
-    {title:'仕入・費用',icon:'receipt',btns:[
-      ['cash_purchase','現金仕入','¥2,000'],
-      ['pay_salary','給与支払','¥1,500'],
-      ['ad_expense','広告宣伝費','¥500']
-    ]},
-    {title:'売掛金のしくみ（掛取引）',icon:'file-text',btns:[
-      ['credit_sales','掛売上（売掛金計上）','¥3,000'],
-      ['collect_ar','売掛金 回収','']
-    ]},
-    {title:'決算整理',icon:'calendar-check',btns:[
-      ['closing_begin_inv','期首商品 → 仕入振替',''],
-      ['closing_end_inv','期末商品 → 繰越商品','¥500'],
-      ['close_period','期末決算締め','']
-    ]}
-  ],
-  2:[
-    {title:'売上・収益',icon:'trending-up',btns:[
-      ['cash_sales','現金売上','¥5,000'],
-      ['credit_sales','掛売上','¥3,000'],
-      ['collect_ar','売掛金 回収',''],
-      ['receive_advance','前受金 受取','¥2,000'],
-      ['advance_to_sales','前受金 → 売上振替','']
-    ]},
-    {title:'仕入・費用',icon:'receipt',btns:[
-      ['cash_purchase','現金仕入','¥2,000'],
-      ['credit_purchase','掛仕入','¥1,500'],
-      ['pay_ap','買掛金 支払',''],
-      ['pay_salary','給与支払','¥1,500'],
-      ['ad_expense','広告宣伝費','¥500'],
-      ['prepaid_expense','前払費用 計上','¥600'],
-      ['expense_prepaid','前払費用 → 費用振替',''],
-      ['accrue_salary','未払費用 計上','¥800'],
-      ['pay_accrued','未払費用 支払','']
-    ]},
-    {title:'決算整理',icon:'calendar-check',btns:[
-      ['closing_begin_inv','期首商品 → 仕入振替',''],
-      ['closing_end_inv','期末商品 → 繰越商品','¥500'],
-      ['accrue_bad_debt','貸倒引当金 繰入','¥300'],
-      ['bad_debt_writeoff','貸倒 実際発生',''],
-      ['close_period','期末決算締め','']
-    ]}
-  ],
-  3:[
-    {title:'売上・収益',icon:'trending-up',btns:[
-      ['cash_sales','現金売上','¥5,000'],['credit_sales','掛売上','¥3,000'],
-      ['collect_ar','売掛金 回収',''],['interest_income','受取利息 計上','¥500'],
-      ['collect_interest','受取利息 受取','']
-    ]},
-    {title:'仕入・費用',icon:'receipt',btns:[
-      ['cash_purchase','現金仕入','¥2,000'],['credit_purchase','掛仕入','¥1,500'],
-      ['pay_salary','給与支払','¥1,500'],['pay_interest','支払利息','¥200']
-    ]},
-    {title:'固定資産',icon:'building-2',btns:[
-      ['buy_equipment','設備購入','¥3,000'],['buy_building','建物購入','¥5,000'],
-      ['buy_land','土地購入','¥4,000'],['sell_asset','固定資産売却（益）',''],
-      ['sell_asset_loss','固定資産売却（損）',''],['depreciation','減価償却費','']
-    ]},
-    {title:'借入・返済',icon:'credit-card',btns:[
-      ['borrow_short','短期借入','¥3,000'],['repay_short','短期返済',''],
-      ['borrow_long','長期借入','¥5,000'],['repay_long','長期返済','']
-    ]},
-    {title:'決算整理',icon:'calendar-check',btns:[
-      ['closing_begin_inv','期首商品 → 仕入振替',''],['closing_end_inv','期末商品 → 繰越商品','¥500'],
-      ['accrue_bad_debt','貸倒引当金 繰入','¥300'],['accrue_salary','未払費用 計上','¥800'],
-      ['prepaid_expense','前払費用 計上','¥600'],['accrue_tax','法人税等 計上','¥1,200'],
-      ['close_period','期末決算締め','']
-    ]}
-  ],
-  4:[
-    {title:'売上・収益',icon:'trending-up',btns:[
-      ['cash_sales','現金売上','¥5,000'],['credit_sales','掛売上','¥3,000'],
-      ['collect_ar','売掛金 回収',''],['interest_income','受取利息','¥500'],
-      ['dividend_income','受取配当金','¥800']
-    ]},
-    {title:'仕入・費用',icon:'receipt',btns:[
-      ['cash_purchase','現金仕入','¥2,000'],['credit_purchase','掛仕入','¥1,500'],
-      ['pay_salary','給与支払','¥1,500'],['rd_expense','研究開発費','¥1,000'],
-      ['pay_interest','支払利息','¥200']
-    ]},
-    {title:'固定資産・投資',icon:'building-2',btns:[
-      ['buy_equipment','設備購入','¥3,000'],['depreciation','減価償却費',''],
-      ['buy_investment','投資有価証券 取得','¥2,000'],['sell_investment','投資有価証券 売却',''],
-      ['invest_valuation_up','有価証券評価益（OCI）','¥500'],['invest_valuation_dn','有価証券評価損',''],
-      ['pay_deposit','敷金・保証金 支払','¥1,000']
-    ]},
-    {title:'財務・資本',icon:'landmark',btns:[
-      ['issue_bond','社債発行','¥5,000'],['redeem_bond','社債償還',''],
-      ['issue_stock','増資（株式発行）','¥3,000'],['buy_treasury','自己株式 取得','¥1,000'],
-      ['cancel_treasury','自己株式 消却',''],['pay_dividend','配当支払','¥500'],
-      ['borrow_short','短期借入','¥3,000'],['borrow_long','長期借入','¥5,000']
-    ]},
-    {title:'決算整理',icon:'calendar-check',btns:[
-      ['closing_begin_inv','期首商品 → 仕入振替',''],['closing_end_inv','期末商品 → 繰越商品','¥500'],
-      ['accrue_bad_debt','貸倒引当金 繰入','¥300'],['depreciation','減価償却',''],
-      ['accrue_retirement','退職給付引当金','¥1,000'],['accrue_tax','法人税等 計上','¥1,200'],
-      ['close_period','期末決算締め','']
-    ]}
-  ],
-  5:[
-    {title:'売上・収益',icon:'trending-up',btns:[
-      ['cash_sales','現金売上','¥5,000'],['credit_sales','掛売上','¥3,000'],
-      ['collect_ar','売掛金 回収',''],['fx_gain','為替差益','¥600']
-    ]},
-    {title:'仕入・費用',icon:'receipt',btns:[
-      ['cash_purchase','現金仕入','¥2,000'],['credit_purchase','掛仕入','¥1,500'],
-      ['pay_salary','給与支払','¥1,500'],['fx_loss','為替差損','¥400']
-    ]},
-    {title:'棚卸・評価',icon:'package',btns:[
-      ['inventory_loss','棚卸減耗損',''],['inventory_writedown','商品評価損（低価法）',''],
-      ['closing_begin_inv','期首商品 → 仕入振替',''],['closing_end_inv','期末商品 → 繰越商品','¥500']
-    ]},
-    {title:'固定資産',icon:'building-2',btns:[
-      ['buy_equipment','設備購入','¥3,000'],['depreciation','減価償却費',''],['impairment','減損損失','']
-    ]},
-    {title:'決算整理',icon:'calendar-check',btns:[
-      ['accrue_bad_debt','貸倒引当金 繰入','¥300'],['accrue_retirement','退職給付引当金','¥1,000'],
-      ['accrue_tax','法人税等 計上','¥1,200'],['pay_tax','法人税等 支払',''],
-      ['close_period','期末決算締め','']
-    ]}
-  ],
-  6:[
-    {title:'売上・収益',icon:'trending-up',btns:[
-      ['cash_sales','現金売上','¥5,000'],['credit_sales','掛売上','¥3,000'],
-      ['collect_ar','売掛金 回収',''],['interest_income','受取利息','¥500'],
-      ['dividend_income','受取配当金','¥800'],['fx_gain','為替差益','¥600']
-    ]},
-    {title:'費用',icon:'receipt',btns:[
-      ['cash_purchase','現金仕入','¥2,000'],['credit_purchase','掛仕入','¥1,500'],
-      ['pay_salary','給与支払','¥1,500'],['ad_expense','広告宣伝費','¥500'],
-      ['rd_expense','研究開発費','¥1,000'],['pay_interest','支払利息','¥200'],['fx_loss','為替差損','¥400']
-    ]},
-    {title:'固定資産・のれん',icon:'building-2',btns:[
-      ['buy_equipment','設備購入','¥3,000'],['buy_building','建物購入','¥5,000'],
-      ['buy_land','土地購入','¥4,000'],['sell_asset','固定資産売却（益）',''],
-      ['sell_asset_loss','固定資産売却（損）',''],['depreciation','減価償却費',''],
-      ['impairment','減損損失',''],['buy_goodwill','のれん 取得','¥4,000'],
-      ['amortize_goodwill','のれん 償却','']
-    ]},
-    {title:'財務・資本',icon:'landmark',btns:[
-      ['borrow_short','短期借入','¥3,000'],['repay_short','短期返済',''],
-      ['borrow_long','長期借入','¥5,000'],['repay_long','長期返済',''],
-      ['issue_bond','社債発行','¥5,000'],['redeem_bond','社債償還',''],
-      ['issue_stock','増資','¥3,000'],['buy_treasury','自己株式 取得','¥1,000'],
-      ['pay_dividend','配当支払','¥500']
-    ]},
-    {title:'決算整理（全）',icon:'calendar-check',btns:[
-      ['closing_begin_inv','期首商品 → 仕入振替',''],['closing_end_inv','期末商品 → 繰越商品','¥500'],
-      ['accrue_bad_debt','貸倒引当金 繰入','¥300'],['bad_debt_writeoff','貸倒 実際発生',''],
-      ['accrue_salary','未払費用 計上','¥800'],['accrue_retirement','退職給付引当金','¥1,000'],
-      ['inventory_loss','棚卸減耗損',''],['inventory_writedown','商品評価損',''],
-      ['accrue_tax','法人税等 計上','¥1,200'],['pay_tax','法人税等 支払',''],
-      ['close_period','期末決算締め','']
-    ]}
-  ],
-  7:[
-    {title:'為替・外貨',icon:'globe',btns:[
-      ['fx_gain','為替差益','¥600'],['fx_loss','為替差損','¥400'],
-      ['fx_translation_adj','換算調整勘定（OCI）','¥300'],
-      ['forward_contract_gain','先物為替予約 差益','¥800'],['forward_contract_loss','先物為替予約 差損','¥600']
-    ]},
-    {title:'税効果・繰延',icon:'percent',btns:[
-      ['deferred_tax_asset','繰延税金資産 計上','¥400'],['deferred_tax_liability','繰延税金負債 計上','¥300'],
-      ['prepaid_tax','法人税等前払（中間）','¥600'],['settle_prepaid','前払 精算',''],
-      ['accrue_tax','法人税等 計上','¥1,200']
-    ]},
-    {title:'棚卸・評価',icon:'package',btns:[
-      ['cash_purchase','現金仕入','¥2,000'],['credit_purchase','掛仕入','¥1,500'],
-      ['closing_begin_inv','期首商品 → 仕入振替',''],['closing_end_inv','期末商品 → 繰越商品','¥500'],
-      ['inventory_loss','棚卸減耗損',''],['inventory_writedown','商品評価損','']
-    ]},
-    {title:'資産評価・減損',icon:'layers',btns:[
-      ['buy_equipment','設備購入','¥3,000'],['depreciation','減価償却費',''],
-      ['impairment','減損損失',''],['buy_goodwill','のれん 取得','¥4,000'],
-      ['amortize_goodwill','のれん 償却',''],['invest_valuation_up','有価証券評価益（OCI）','¥500'],
-      ['invest_valuation_dn','有価証券評価損','']
-    ]},
-    {title:'資本・財務',icon:'landmark',btns:[
-      ['cash_sales','現金売上','¥5,000'],['credit_sales','掛売上','¥3,000'],
-      ['pay_salary','給与支払','¥1,500'],['issue_stock','増資','¥3,000'],
-      ['buy_treasury','自己株式 取得','¥1,000'],['cancel_treasury','自己株式 消却',''],
-      ['pay_dividend','配当支払','¥500'],['issue_bond','社債発行','¥5,000'],['redeem_bond','社債償還','']
-    ]},
-    {title:'決算整理',icon:'calendar-check',btns:[
-      ['accrue_bad_debt','貸倒引当金 繰入','¥300'],['accrue_retirement','退職給付引当金','¥1,000'],
-      ['accrue_salary','未払費用 計上','¥800'],['pay_tax','法人税等 支払',''],
-      ['close_period','期末決算締め','']
-    ]}
-  ],
-  8:[
-    {title:'高度収益認識',icon:'trending-up',btns:[
-      ['cash_sales','現金売上','¥5,000'],['credit_sales','掛売上（IFRS15）','¥3,000'],
-      ['collect_ar','売掛金 回収',''],['receive_advance','前受金（長期契約）','¥2,000'],
-      ['advance_to_sales','前受金 → 売上振替',''],['interest_income','受取利息','¥500'],
-      ['dividend_income','受取配当金','¥800'],['fx_gain','為替差益','¥600']
-    ]},
-    {title:'引当金・準備金',icon:'shield',btns:[
-      ['accrue_bad_debt','貸倒引当金 繰入','¥300'],['bad_debt_writeoff','貸倒 実際発生',''],
-      ['accrue_retirement','退職給付引当金','¥1,000'],['pay_retirement','退職給付 支払',''],
-      ['warranty_provision','製品保証引当金','¥500'],['restructuring_provision','リストラ引当金','¥2,000']
-    ]},
-    {title:'M&A・連結',icon:'git-merge',btns:[
-      ['buy_goodwill','のれん 取得（M&A）','¥4,000'],['amortize_goodwill','のれん 償却',''],
-      ['impairment','のれん 減損',''],['buy_investment','子会社・関連会社株式 取得','¥2,000'],
-      ['sell_investment','投資有価証券 売却',''],['equity_method_income','持分法投資利益','¥1,000'],
-      ['equity_method_loss','持分法投資損失','']
-    ]},
-    {title:'リース・金融商品',icon:'home',btns:[
-      ['ifrs_lease_rou','使用権資産 計上（IFRS16）','¥3,000'],['ifrs_lease_payment','リース負債 支払',''],
-      ['hedge_instrument','ヘッジ手段 指定（OCI）','¥200'],['fx_translation_adj','換算調整勘定','¥300']
-    ]},
-    {title:'税効果・繰延',icon:'percent',btns:[
-      ['deferred_tax_asset','繰延税金資産','¥400'],['deferred_tax_liability','繰延税金負債','¥300'],
-      ['accrue_tax','法人税等 計上','¥1,200'],['pay_tax','法人税等 支払','']
-    ]},
-    {title:'資本政策',icon:'landmark',btns:[
-      ['issue_stock','増資（第三者割当）','¥3,000'],['buy_treasury','自己株式 取得','¥1,000'],
-      ['cancel_treasury','自己株式 消却',''],['pay_dividend','配当支払','¥500'],
-      ['issue_bond','社債発行','¥5,000'],['redeem_bond','社債償還','']
-    ]},
-    {title:'決算整理',icon:'calendar-check',btns:[
-      ['closing_begin_inv','期首商品 → 仕入振替',''],['closing_end_inv','期末商品 → 繰越商品','¥500'],
-      ['inventory_loss','棚卸減耗損',''],['inventory_writedown','商品評価損',''],
-      ['depreciation','減価償却',''],['accrue_salary','未払費用 計上','¥800'],
-      ['prepaid_expense','前払費用 計上','¥600'],['close_period','期末決算締め','']
-    ]}
-  ],
-  9:[
-    {title:'国際会計（IFRS）',icon:'globe',btns:[
-      ['cash_sales','現金売上（IFRS 5段階）','¥5,000'],['credit_sales','掛売上','¥3,000'],
-      ['ifrs_lease_rou','使用権資産 計上（IFRS16）','¥3,000'],['ifrs_lease_payment','リース負債 支払',''],
-      ['ifrs_revaluation','有形固定資産 再評価','¥1,000'],['fx_translation_adj','換算調整勘定','¥300'],
-      ['forward_contract_gain','先物差益','¥800'],['forward_contract_loss','先物差損','¥600']
-    ]},
-    {title:'高度税効果',icon:'percent',btns:[
-      ['deferred_tax_asset','繰延税金資産','¥400'],['deferred_tax_liability','繰延税金負債','¥300'],
-      ['valuation_allowance','評価性引当額（回収不能）',''],['accrue_tax','法人税等 計上','¥1,200'],
-      ['pay_tax','法人税等 支払','']
-    ]},
-    {title:'連結・持分法',icon:'git-merge',btns:[
-      ['buy_goodwill','のれん（パーチェス法）','¥4,000'],['impairment','のれん減損（IFRS）',''],
-      ['equity_method_income','持分法投資利益','¥1,000'],['equity_method_loss','持分法投資損失',''],
-      ['minority_interest','非支配株主持分','¥1,000'],['buy_investment','関連会社株式 取得','¥2,000']
-    ]},
-    {title:'複雑な資本取引',icon:'landmark',btns:[
-      ['issue_stock','新株予約権付社債','¥3,000'],['stock_option','ストックオプション 費用化','¥300'],
-      ['buy_treasury','自己株式 取得','¥1,000'],['cancel_treasury','自己株式 消却',''],
-      ['pay_dividend','配当支払','¥500'],['oci_item','その他包括利益（OCI）','¥500']
-    ]},
-    {title:'決算整理',icon:'calendar-check',btns:[
-      ['closing_begin_inv','期首商品 → 仕入振替',''],['closing_end_inv','期末商品 → 繰越商品','¥500'],
-      ['inventory_loss','棚卸減耗損',''],['inventory_writedown','商品評価損',''],
-      ['depreciation','減価償却',''],['amortize_goodwill','のれん 償却',''],
-      ['accrue_retirement','退職給付引当金','¥1,000'],['warranty_provision','製品保証引当金','¥500'],
-      ['accrue_salary','未払費用 計上','¥800'],['accrue_bad_debt','貸倒引当金 繰入','¥300'],
-      ['close_period','期末決算締め','']
-    ]}
-  ],
-  10:[
-    {title:'売上・収益【全】',icon:'trending-up',btns:[
-      ['cash_sales','現金売上','¥5,000'],['credit_sales','掛売上','¥3,000'],
-      ['collect_ar','売掛金 回収',''],['receive_advance','前受金 受取','¥2,000'],
-      ['advance_to_sales','前受金 → 売上',''],['interest_income','受取利息','¥500'],
-      ['collect_interest','受取利息 受取',''],['dividend_income','受取配当金','¥800'],
-      ['fx_gain','為替差益','¥600'],['equity_method_income','持分法投資利益','¥1,000']
-    ]},
-    {title:'仕入・費用【全】',icon:'receipt',btns:[
-      ['cash_purchase','現金仕入','¥2,000'],['credit_purchase','掛仕入','¥1,500'],
-      ['pay_ap','買掛金 支払',''],['pay_salary','給与支払','¥1,500'],
-      ['accrue_salary','未払費用 計上','¥800'],['pay_accrued','未払費用 支払',''],
-      ['ad_expense','広告宣伝費','¥500'],['rd_expense','研究開発費','¥1,000'],
-      ['pay_interest','支払利息','¥200'],['fx_loss','為替差損','¥400'],
-      ['equity_method_loss','持分法投資損失',''],['warranty_provision','製品保証引当金','¥500'],
-      ['restructuring_provision','リストラ引当金','¥2,000']
-    ]},
-    {title:'前払・仮払',icon:'clock',btns:[
-      ['prepay_advance','仮払金 支払','¥300'],['settle_advance','仮払金 精算',''],
-      ['prepaid_expense','前払費用 計上','¥600'],['expense_prepaid','前払費用 → 費用振替','']
-    ]},
-    {title:'棚卸・評価【全】',icon:'package',btns:[
-      ['closing_begin_inv','期首商品 → 仕入振替',''],['closing_end_inv','期末商品 → 繰越商品','¥500'],
-      ['inventory_loss','棚卸減耗損',''],['inventory_writedown','商品評価損','']
-    ]},
-    {title:'固定資産【全】',icon:'building-2',btns:[
-      ['buy_equipment','設備購入','¥3,000'],['buy_building','建物購入','¥5,000'],
-      ['buy_land','土地購入','¥4,000'],['sell_asset','固定資産売却（益）',''],
-      ['sell_asset_loss','固定資産売却（損）',''],['depreciation','減価償却費',''],
-      ['impairment','減損損失',''],['buy_goodwill','のれん 取得','¥4,000'],
-      ['amortize_goodwill','のれん 償却',''],['pay_deposit','敷金・保証金 支払','¥1,000'],
-      ['ifrs_lease_rou','使用権資産 計上','¥3,000'],['ifrs_revaluation','固定資産再評価（IFRS）','¥1,000']
-    ]},
-    {title:'投資有価証券【全】',icon:'bar-chart-2',btns:[
-      ['buy_investment','投資有価証券 取得','¥2,000'],['sell_investment','投資有価証券 売却',''],
-      ['invest_valuation_up','有価証券評価益（OCI）','¥500'],['invest_valuation_dn','有価証券評価損','']
-    ]},
-    {title:'借入・社債【全】',icon:'credit-card',btns:[
-      ['borrow_short','短期借入','¥3,000'],['repay_short','短期返済',''],
-      ['borrow_long','長期借入','¥5,000'],['repay_long','長期返済',''],
-      ['issue_bond','社債発行','¥5,000'],['redeem_bond','社債償還',''],
-      ['short_loan_out','短期貸付 実行','¥1,000'],['collect_loan_out','短期貸付 回収','']
-    ]},
-    {title:'資本政策【全】',icon:'landmark',btns:[
-      ['issue_stock','増資','¥3,000'],['buy_treasury','自己株式 取得','¥1,000'],
-      ['cancel_treasury','自己株式 消却',''],['pay_dividend','配当支払','¥500'],
-      ['stock_option','ストックオプション','¥300'],['oci_item','その他包括利益（OCI）','¥500'],
-      ['minority_interest','非支配株主持分','¥1,000']
-    ]},
-    {title:'高度・国際【全】',icon:'globe',btns:[
-      ['fx_translation_adj','換算調整勘定','¥300'],['forward_contract_gain','先物差益','¥800'],
-      ['forward_contract_loss','先物差損','¥600'],['deferred_tax_asset','繰延税金資産','¥400'],
-      ['deferred_tax_liability','繰延税金負債','¥300'],['valuation_allowance','評価性引当額',''],
-      ['ifrs_lease_payment','リース負債 支払',''],['hedge_instrument','ヘッジ手段 指定','¥200']
-    ]},
-    {title:'決算整理【全】',icon:'calendar-check',btns:[
-      ['accrue_bad_debt','貸倒引当金 繰入','¥300'],['bad_debt_writeoff','貸倒 実際発生',''],
-      ['accrue_retirement','退職給付引当金','¥1,000'],['pay_retirement','退職給付 支払',''],
-      ['accrue_tax','法人税等 計上','¥1,200'],['pay_tax','法人税等 支払',''],
-      ['prepaid_tax','法人税等前払','¥600'],['settle_prepaid','前払 精算',''],
-      ['close_period','期末決算締め','']
-    ]}
-  ]
-};
-
-function buildPanelHTML(secs,prefix){
-  var html='';
-  for(var i=0;i<secs.length;i++){
-    var sec=secs[i];
-    html+='<div class="btn-section">'
-         +'<div class="btn-section-title"><i data-lucide="'+(sec.icon||'circle')+'"></i>'+sec.title+'</div>';
-    for(var j=0;j<sec.btns.length;j++){
-      var b=sec.btns[j];
-      html+='<button class="txn-btn" onclick="go(\''+b[0]+'\')">'
-           +'<span>'+b[1]+'</span>'
-           +(b[2]?'<span class="amt">'+b[2]+'</span>':'')
-           +'</button>';
-    }
-    html+='</div>';
-  }
-  return html;
-}
-
 function buildPanels(){
-  // Desktop sidebar
-  var deskContainer=document.getElementById('panels-container');
-  // Mobile drawer
-  var mobContainer=document.getElementById('drawer-panels-container');
+  var container=document.getElementById('panels-container');
+
+  // icon: Lucide icon name for each section category
+  var PANELS={
+    1:[
+      {title:'売上・収益',icon:'trending-up',btns:[
+        ['cash_sales','現金売上','¥5,000']
+      ]},
+      {title:'仕入・費用',icon:'receipt',btns:[
+        ['cash_purchase','現金仕入','¥2,000'],
+        ['pay_salary','給与支払','¥1,500'],
+        ['ad_expense','広告宣伝費','¥500']
+      ]},
+      // ① 仮払・立替 を「売掛金のしくみ」に変更（入門者向け）
+      {title:'売掛金のしくみ（掛取引）',icon:'file-text',btns:[
+        ['credit_sales','掛売上（売掛金計上）','¥3,000'],
+        ['collect_ar','売掛金 回収','']
+      ]},
+      {title:'決算整理',icon:'calendar-check',btns:[
+        ['closing_begin_inv','期首商品 → 仕入振替',''],
+        ['closing_end_inv','期末商品 → 繰越商品','¥500'],
+        ['close_period','期末決算締め','']
+      ]}
+    ],
+    2:[
+      {title:'売上・収益',icon:'trending-up',btns:[
+        ['cash_sales','現金売上','¥5,000'],
+        ['credit_sales','掛売上','¥3,000'],
+        ['collect_ar','売掛金 回収',''],
+        ['receive_advance','前受金 受取','¥2,000'],
+        ['advance_to_sales','前受金 → 売上振替','']
+      ]},
+      {title:'仕入・費用',icon:'receipt',btns:[
+        ['cash_purchase','現金仕入','¥2,000'],
+        ['credit_purchase','掛仕入','¥1,500'],
+        ['pay_ap','買掛金 支払',''],
+        ['pay_salary','給与支払','¥1,500'],
+        ['ad_expense','広告宣伝費','¥500'],
+        ['prepaid_expense','前払費用 計上','¥600'],
+        ['expense_prepaid','前払費用 → 費用振替',''],
+        ['accrue_salary','未払費用 計上','¥800'],
+        ['pay_accrued','未払費用 支払','']
+      ]},
+      {title:'決算整理',icon:'calendar-check',btns:[
+        ['closing_begin_inv','期首商品 → 仕入振替',''],
+        ['closing_end_inv','期末商品 → 繰越商品','¥500'],
+        ['accrue_bad_debt','貸倒引当金 繰入','¥300'],
+        ['bad_debt_writeoff','貸倒 実際発生',''],
+        ['close_period','期末決算締め','']
+      ]}
+    ],
+    3:[
+      {title:'売上・収益',icon:'trending-up',btns:[
+        ['cash_sales','現金売上','¥5,000'],
+        ['credit_sales','掛売上','¥3,000'],
+        ['collect_ar','売掛金 回収',''],
+        ['interest_income','受取利息 計上','¥500'],
+        ['collect_interest','受取利息 受取','']
+      ]},
+      {title:'仕入・費用',icon:'receipt',btns:[
+        ['cash_purchase','現金仕入','¥2,000'],
+        ['credit_purchase','掛仕入','¥1,500'],
+        ['pay_salary','給与支払','¥1,500'],
+        ['pay_interest','支払利息','¥200']
+      ]},
+      {title:'固定資産',icon:'building-2',btns:[
+        ['buy_equipment','設備購入','¥3,000'],
+        ['buy_building','建物購入','¥5,000'],
+        ['buy_land','土地購入','¥4,000'],
+        ['sell_asset','固定資産売却（益）',''],
+        ['sell_asset_loss','固定資産売却（損）',''],
+        ['depreciation','減価償却費','']
+      ]},
+      {title:'借入・返済',icon:'credit-card',btns:[
+        ['borrow_short','短期借入','¥3,000'],
+        ['repay_short','短期返済',''],
+        ['borrow_long','長期借入','¥5,000'],
+        ['repay_long','長期返済','']
+      ]},
+      {title:'決算整理',icon:'calendar-check',btns:[
+        ['closing_begin_inv','期首商品 → 仕入振替',''],
+        ['closing_end_inv','期末商品 → 繰越商品','¥500'],
+        ['accrue_bad_debt','貸倒引当金 繰入','¥300'],
+        ['accrue_salary','未払費用 計上','¥800'],
+        ['prepaid_expense','前払費用 計上','¥600'],
+        ['accrue_tax','法人税等 計上','¥1,200'],
+        ['close_period','期末決算締め','']
+      ]}
+    ],
+    4:[
+      {title:'売上・収益',icon:'trending-up',btns:[
+        ['cash_sales','現金売上','¥5,000'],
+        ['credit_sales','掛売上','¥3,000'],
+        ['collect_ar','売掛金 回収',''],
+        ['interest_income','受取利息','¥500'],
+        ['dividend_income','受取配当金','¥800']
+      ]},
+      {title:'仕入・費用',icon:'receipt',btns:[
+        ['cash_purchase','現金仕入','¥2,000'],
+        ['credit_purchase','掛仕入','¥1,500'],
+        ['pay_salary','給与支払','¥1,500'],
+        ['rd_expense','研究開発費','¥1,000'],
+        ['pay_interest','支払利息','¥200']
+      ]},
+      {title:'固定資産・投資',icon:'building-2',btns:[
+        ['buy_equipment','設備購入','¥3,000'],
+        ['depreciation','減価償却費',''],
+        ['buy_investment','投資有価証券 取得','¥2,000'],
+        ['sell_investment','投資有価証券 売却',''],
+        ['invest_valuation_up','有価証券評価益（OCI）','¥500'],
+        ['invest_valuation_dn','有価証券評価損',''],
+        ['pay_deposit','敷金・保証金 支払','¥1,000']
+      ]},
+      {title:'財務・資本',icon:'landmark',btns:[
+        ['issue_bond','社債発行','¥5,000'],
+        ['redeem_bond','社債償還',''],
+        ['issue_stock','増資（株式発行）','¥3,000'],
+        ['buy_treasury','自己株式 取得','¥1,000'],
+        ['cancel_treasury','自己株式 消却',''],
+        ['pay_dividend','配当支払','¥500'],
+        ['borrow_short','短期借入','¥3,000'],
+        ['borrow_long','長期借入','¥5,000']
+      ]},
+      {title:'決算整理',icon:'calendar-check',btns:[
+        ['closing_begin_inv','期首商品 → 仕入振替',''],
+        ['closing_end_inv','期末商品 → 繰越商品','¥500'],
+        ['accrue_bad_debt','貸倒引当金 繰入','¥300'],
+        ['depreciation','減価償却',''],
+        ['accrue_retirement','退職給付引当金','¥1,000'],
+        ['accrue_tax','法人税等 計上','¥1,200'],
+        ['close_period','期末決算締め','']
+      ]}
+    ],
+    5:[
+      {title:'売上・収益',icon:'trending-up',btns:[
+        ['cash_sales','現金売上','¥5,000'],
+        ['credit_sales','掛売上','¥3,000'],
+        ['collect_ar','売掛金 回収',''],
+        ['fx_gain','為替差益','¥600']
+      ]},
+      {title:'仕入・費用',icon:'receipt',btns:[
+        ['cash_purchase','現金仕入','¥2,000'],
+        ['credit_purchase','掛仕入','¥1,500'],
+        ['pay_salary','給与支払','¥1,500'],
+        ['fx_loss','為替差損','¥400']
+      ]},
+      {title:'棚卸・評価',icon:'package',btns:[
+        ['inventory_loss','棚卸減耗損',''],
+        ['inventory_writedown','商品評価損（低価法）',''],
+        ['closing_begin_inv','期首商品 → 仕入振替',''],
+        ['closing_end_inv','期末商品 → 繰越商品','¥500']
+      ]},
+      {title:'固定資産',icon:'building-2',btns:[
+        ['buy_equipment','設備購入','¥3,000'],
+        ['depreciation','減価償却費',''],
+        ['impairment','減損損失','']
+      ]},
+      {title:'決算整理',icon:'calendar-check',btns:[
+        ['accrue_bad_debt','貸倒引当金 繰入','¥300'],
+        ['accrue_retirement','退職給付引当金','¥1,000'],
+        ['accrue_tax','法人税等 計上','¥1,200'],
+        ['pay_tax','法人税等 支払',''],
+        ['close_period','期末決算締め','']
+      ]}
+    ],
+    6:[
+      {title:'売上・収益',icon:'trending-up',btns:[
+        ['cash_sales','現金売上','¥5,000'],
+        ['credit_sales','掛売上','¥3,000'],
+        ['collect_ar','売掛金 回収',''],
+        ['interest_income','受取利息','¥500'],
+        ['dividend_income','受取配当金','¥800'],
+        ['fx_gain','為替差益','¥600']
+      ]},
+      {title:'費用',icon:'receipt',btns:[
+        ['cash_purchase','現金仕入','¥2,000'],
+        ['credit_purchase','掛仕入','¥1,500'],
+        ['pay_salary','給与支払','¥1,500'],
+        ['ad_expense','広告宣伝費','¥500'],
+        ['rd_expense','研究開発費','¥1,000'],
+        ['pay_interest','支払利息','¥200'],
+        ['fx_loss','為替差損','¥400']
+      ]},
+      {title:'固定資産・のれん',icon:'building-2',btns:[
+        ['buy_equipment','設備購入','¥3,000'],
+        ['buy_building','建物購入','¥5,000'],
+        ['buy_land','土地購入','¥4,000'],
+        ['sell_asset','固定資産売却（益）',''],
+        ['sell_asset_loss','固定資産売却（損）',''],
+        ['depreciation','減価償却費',''],
+        ['impairment','減損損失',''],
+        ['buy_goodwill','のれん 取得','¥4,000'],
+        ['amortize_goodwill','のれん 償却','']
+      ]},
+      {title:'財務・資本',icon:'landmark',btns:[
+        ['borrow_short','短期借入','¥3,000'],
+        ['repay_short','短期返済',''],
+        ['borrow_long','長期借入','¥5,000'],
+        ['repay_long','長期返済',''],
+        ['issue_bond','社債発行','¥5,000'],
+        ['redeem_bond','社債償還',''],
+        ['issue_stock','増資','¥3,000'],
+        ['buy_treasury','自己株式 取得','¥1,000'],
+        ['pay_dividend','配当支払','¥500']
+      ]},
+      {title:'決算整理（全）',icon:'calendar-check',btns:[
+        ['closing_begin_inv','期首商品 → 仕入振替',''],
+        ['closing_end_inv','期末商品 → 繰越商品','¥500'],
+        ['accrue_bad_debt','貸倒引当金 繰入','¥300'],
+        ['bad_debt_writeoff','貸倒 実際発生',''],
+        ['accrue_salary','未払費用 計上','¥800'],
+        ['accrue_retirement','退職給付引当金','¥1,000'],
+        ['inventory_loss','棚卸減耗損',''],
+        ['inventory_writedown','商品評価損',''],
+        ['accrue_tax','法人税等 計上','¥1,200'],
+        ['pay_tax','法人税等 支払',''],
+        ['close_period','期末決算締め','']
+      ]}
+    ],
+    7:[
+      {title:'為替・外貨',icon:'globe',btns:[
+        ['fx_gain','為替差益','¥600'],
+        ['fx_loss','為替差損','¥400'],
+        ['fx_translation_adj','換算調整勘定（OCI）','¥300'],
+        ['forward_contract_gain','先物為替予約 差益','¥800'],
+        ['forward_contract_loss','先物為替予約 差損','¥600']
+      ]},
+      {title:'税効果・繰延',icon:'percent',btns:[
+        ['deferred_tax_asset','繰延税金資産 計上','¥400'],
+        ['deferred_tax_liability','繰延税金負債 計上','¥300'],
+        ['prepaid_tax','法人税等前払（中間）','¥600'],
+        ['settle_prepaid','前払 精算',''],
+        ['accrue_tax','法人税等 計上','¥1,200']
+      ]},
+      {title:'棚卸・評価',icon:'package',btns:[
+        ['cash_purchase','現金仕入','¥2,000'],
+        ['credit_purchase','掛仕入','¥1,500'],
+        ['closing_begin_inv','期首商品 → 仕入振替',''],
+        ['closing_end_inv','期末商品 → 繰越商品','¥500'],
+        ['inventory_loss','棚卸減耗損',''],
+        ['inventory_writedown','商品評価損','']
+      ]},
+      {title:'資産評価・減損',icon:'layers',btns:[
+        ['buy_equipment','設備購入','¥3,000'],
+        ['depreciation','減価償却費',''],
+        ['impairment','減損損失',''],
+        ['buy_goodwill','のれん 取得','¥4,000'],
+        ['amortize_goodwill','のれん 償却',''],
+        ['invest_valuation_up','有価証券評価益（OCI）','¥500'],
+        ['invest_valuation_dn','有価証券評価損','']
+      ]},
+      {title:'資本・財務',icon:'landmark',btns:[
+        ['cash_sales','現金売上','¥5,000'],
+        ['credit_sales','掛売上','¥3,000'],
+        ['pay_salary','給与支払','¥1,500'],
+        ['issue_stock','増資','¥3,000'],
+        ['buy_treasury','自己株式 取得','¥1,000'],
+        ['cancel_treasury','自己株式 消却',''],
+        ['pay_dividend','配当支払','¥500'],
+        ['issue_bond','社債発行','¥5,000'],
+        ['redeem_bond','社債償還','']
+      ]},
+      {title:'決算整理',icon:'calendar-check',btns:[
+        ['accrue_bad_debt','貸倒引当金 繰入','¥300'],
+        ['accrue_retirement','退職給付引当金','¥1,000'],
+        ['accrue_salary','未払費用 計上','¥800'],
+        ['pay_tax','法人税等 支払',''],
+        ['close_period','期末決算締め','']
+      ]}
+    ],
+    8:[
+      {title:'高度収益認識',icon:'trending-up',btns:[
+        ['cash_sales','現金売上','¥5,000'],
+        ['credit_sales','掛売上（IFRS15）','¥3,000'],
+        ['collect_ar','売掛金 回収',''],
+        ['receive_advance','前受金（長期契約）','¥2,000'],
+        ['advance_to_sales','前受金 → 売上振替',''],
+        ['interest_income','受取利息','¥500'],
+        ['dividend_income','受取配当金','¥800'],
+        ['fx_gain','為替差益','¥600']
+      ]},
+      {title:'引当金・準備金',icon:'shield',btns:[
+        ['accrue_bad_debt','貸倒引当金 繰入','¥300'],
+        ['bad_debt_writeoff','貸倒 実際発生',''],
+        ['accrue_retirement','退職給付引当金','¥1,000'],
+        ['pay_retirement','退職給付 支払',''],
+        ['warranty_provision','製品保証引当金','¥500'],
+        ['restructuring_provision','リストラ引当金','¥2,000']
+      ]},
+      {title:'M&A・連結',icon:'git-merge',btns:[
+        ['buy_goodwill','のれん 取得（M&A）','¥4,000'],
+        ['amortize_goodwill','のれん 償却',''],
+        ['impairment','のれん 減損',''],
+        ['buy_investment','子会社・関連会社株式 取得','¥2,000'],
+        ['sell_investment','投資有価証券 売却',''],
+        ['equity_method_income','持分法投資利益','¥1,000'],
+        ['equity_method_loss','持分法投資損失','']
+      ]},
+      {title:'リース・金融商品',icon:'home',btns:[
+        ['ifrs_lease_rou','使用権資産 計上（IFRS16）','¥3,000'],
+        ['ifrs_lease_payment','リース負債 支払',''],
+        ['hedge_instrument','ヘッジ手段 指定（OCI）','¥200'],
+        ['fx_translation_adj','換算調整勘定','¥300']
+      ]},
+      {title:'税効果・繰延',icon:'percent',btns:[
+        ['deferred_tax_asset','繰延税金資産','¥400'],
+        ['deferred_tax_liability','繰延税金負債','¥300'],
+        ['accrue_tax','法人税等 計上','¥1,200'],
+        ['pay_tax','法人税等 支払','']
+      ]},
+      {title:'資本政策',icon:'landmark',btns:[
+        ['issue_stock','増資（第三者割当）','¥3,000'],
+        ['buy_treasury','自己株式 取得','¥1,000'],
+        ['cancel_treasury','自己株式 消却',''],
+        ['pay_dividend','配当支払','¥500'],
+        ['issue_bond','社債発行','¥5,000'],
+        ['redeem_bond','社債償還','']
+      ]},
+      {title:'決算整理',icon:'calendar-check',btns:[
+        ['closing_begin_inv','期首商品 → 仕入振替',''],
+        ['closing_end_inv','期末商品 → 繰越商品','¥500'],
+        ['inventory_loss','棚卸減耗損',''],
+        ['inventory_writedown','商品評価損',''],
+        ['depreciation','減価償却',''],
+        ['accrue_salary','未払費用 計上','¥800'],
+        ['prepaid_expense','前払費用 計上','¥600'],
+        ['close_period','期末決算締め','']
+      ]}
+    ],
+    9:[
+      {title:'国際会計（IFRS）',icon:'globe',btns:[
+        ['cash_sales','現金売上（IFRS 5段階）','¥5,000'],
+        ['credit_sales','掛売上','¥3,000'],
+        ['ifrs_lease_rou','使用権資産 計上（IFRS16）','¥3,000'],
+        ['ifrs_lease_payment','リース負債 支払',''],
+        ['ifrs_revaluation','有形固定資産 再評価','¥1,000'],
+        ['fx_translation_adj','換算調整勘定','¥300'],
+        ['forward_contract_gain','先物差益','¥800'],
+        ['forward_contract_loss','先物差損','¥600']
+      ]},
+      {title:'高度税効果',icon:'percent',btns:[
+        ['deferred_tax_asset','繰延税金資産','¥400'],
+        ['deferred_tax_liability','繰延税金負債','¥300'],
+        ['valuation_allowance','評価性引当額（回収不能）',''],
+        ['accrue_tax','法人税等 計上','¥1,200'],
+        ['pay_tax','法人税等 支払','']
+      ]},
+      {title:'連結・持分法',icon:'git-merge',btns:[
+        ['buy_goodwill','のれん（パーチェス法）','¥4,000'],
+        ['impairment','のれん減損（IFRS）',''],
+        ['equity_method_income','持分法投資利益','¥1,000'],
+        ['equity_method_loss','持分法投資損失',''],
+        ['minority_interest','非支配株主持分','¥1,000'],
+        ['buy_investment','関連会社株式 取得','¥2,000']
+      ]},
+      {title:'複雑な資本取引',icon:'landmark',btns:[
+        ['issue_stock','新株予約権付社債','¥3,000'],
+        ['stock_option','ストックオプション 費用化','¥300'],
+        ['buy_treasury','自己株式 取得','¥1,000'],
+        ['cancel_treasury','自己株式 消却',''],
+        ['pay_dividend','配当支払','¥500'],
+        ['oci_item','その他包括利益（OCI）','¥500']
+      ]},
+      {title:'決算整理',icon:'calendar-check',btns:[
+        ['closing_begin_inv','期首商品 → 仕入振替',''],
+        ['closing_end_inv','期末商品 → 繰越商品','¥500'],
+        ['inventory_loss','棚卸減耗損',''],
+        ['inventory_writedown','商品評価損',''],
+        ['depreciation','減価償却',''],
+        ['amortize_goodwill','のれん 償却',''],
+        ['accrue_retirement','退職給付引当金','¥1,000'],
+        ['warranty_provision','製品保証引当金','¥500'],
+        ['accrue_salary','未払費用 計上','¥800'],
+        ['accrue_bad_debt','貸倒引当金 繰入','¥300'],
+        ['close_period','期末決算締め','']
+      ]}
+    ],
+    10:[
+      {title:'売上・収益【全】',icon:'trending-up',btns:[
+        ['cash_sales','現金売上','¥5,000'],
+        ['credit_sales','掛売上','¥3,000'],
+        ['collect_ar','売掛金 回収',''],
+        ['receive_advance','前受金 受取','¥2,000'],
+        ['advance_to_sales','前受金 → 売上',''],
+        ['interest_income','受取利息','¥500'],
+        ['collect_interest','受取利息 受取',''],
+        ['dividend_income','受取配当金','¥800'],
+        ['fx_gain','為替差益','¥600'],
+        ['equity_method_income','持分法投資利益','¥1,000']
+      ]},
+      {title:'仕入・費用【全】',icon:'receipt',btns:[
+        ['cash_purchase','現金仕入','¥2,000'],
+        ['credit_purchase','掛仕入','¥1,500'],
+        ['pay_ap','買掛金 支払',''],
+        ['pay_salary','給与支払','¥1,500'],
+        ['accrue_salary','未払費用 計上','¥800'],
+        ['pay_accrued','未払費用 支払',''],
+        ['ad_expense','広告宣伝費','¥500'],
+        ['rd_expense','研究開発費','¥1,000'],
+        ['pay_interest','支払利息','¥200'],
+        ['fx_loss','為替差損','¥400'],
+        ['equity_method_loss','持分法投資損失',''],
+        ['warranty_provision','製品保証引当金','¥500'],
+        ['restructuring_provision','リストラ引当金','¥2,000']
+      ]},
+      {title:'前払・仮払',icon:'clock',btns:[
+        ['prepay_advance','仮払金 支払','¥300'],
+        ['settle_advance','仮払金 精算',''],
+        ['prepaid_expense','前払費用 計上','¥600'],
+        ['expense_prepaid','前払費用 → 費用振替','']
+      ]},
+      {title:'棚卸・評価【全】',icon:'package',btns:[
+        ['closing_begin_inv','期首商品 → 仕入振替',''],
+        ['closing_end_inv','期末商品 → 繰越商品','¥500'],
+        ['inventory_loss','棚卸減耗損',''],
+        ['inventory_writedown','商品評価損','']
+      ]},
+      {title:'固定資産【全】',icon:'building-2',btns:[
+        ['buy_equipment','設備購入','¥3,000'],
+        ['buy_building','建物購入','¥5,000'],
+        ['buy_land','土地購入','¥4,000'],
+        ['sell_asset','固定資産売却（益）',''],
+        ['sell_asset_loss','固定資産売却（損）',''],
+        ['depreciation','減価償却費',''],
+        ['impairment','減損損失',''],
+        ['buy_goodwill','のれん 取得','¥4,000'],
+        ['amortize_goodwill','のれん 償却',''],
+        ['pay_deposit','敷金・保証金 支払','¥1,000'],
+        ['ifrs_lease_rou','使用権資産 計上','¥3,000'],
+        ['ifrs_revaluation','固定資産再評価（IFRS）','¥1,000']
+      ]},
+      {title:'投資有価証券【全】',icon:'bar-chart-2',btns:[
+        ['buy_investment','投資有価証券 取得','¥2,000'],
+        ['sell_investment','投資有価証券 売却',''],
+        ['invest_valuation_up','有価証券評価益（OCI）','¥500'],
+        ['invest_valuation_dn','有価証券評価損','']
+      ]},
+      {title:'借入・社債【全】',icon:'credit-card',btns:[
+        ['borrow_short','短期借入','¥3,000'],
+        ['repay_short','短期返済',''],
+        ['borrow_long','長期借入','¥5,000'],
+        ['repay_long','長期返済',''],
+        ['issue_bond','社債発行','¥5,000'],
+        ['redeem_bond','社債償還',''],
+        ['short_loan_out','短期貸付 実行','¥1,000'],
+        ['collect_loan_out','短期貸付 回収','']
+      ]},
+      {title:'資本政策【全】',icon:'landmark',btns:[
+        ['issue_stock','増資','¥3,000'],
+        ['buy_treasury','自己株式 取得','¥1,000'],
+        ['cancel_treasury','自己株式 消却',''],
+        ['pay_dividend','配当支払','¥500'],
+        ['stock_option','ストックオプション','¥300'],
+        ['oci_item','その他包括利益（OCI）','¥500'],
+        ['minority_interest','非支配株主持分','¥1,000']
+      ]},
+      {title:'高度・国際【全】',icon:'globe',btns:[
+        ['fx_translation_adj','換算調整勘定','¥300'],
+        ['forward_contract_gain','先物差益','¥800'],
+        ['forward_contract_loss','先物差損','¥600'],
+        ['deferred_tax_asset','繰延税金資産','¥400'],
+        ['deferred_tax_liability','繰延税金負債','¥300'],
+        ['valuation_allowance','評価性引当額',''],
+        ['ifrs_lease_payment','リース負債 支払',''],
+        ['hedge_instrument','ヘッジ手段 指定','¥200']
+      ]},
+      {title:'決算整理【全】',icon:'calendar-check',btns:[
+        ['accrue_bad_debt','貸倒引当金 繰入','¥300'],
+        ['bad_debt_writeoff','貸倒 実際発生',''],
+        ['accrue_retirement','退職給付引当金','¥1,000'],
+        ['pay_retirement','退職給付 支払',''],
+        ['accrue_tax','法人税等 計上','¥1,200'],
+        ['pay_tax','法人税等 支払',''],
+        ['prepaid_tax','法人税等前払','¥600'],
+        ['settle_prepaid','前払 精算',''],
+        ['close_period','期末決算締め','']
+      ]}
+    ]
+  };
 
   for(var lv=1;lv<=10;lv++){
+    var panelDiv=document.createElement('div');
+    panelDiv.className='lv-panel'+(lv===1?' active':'');
+    panelDiv.id='panel-'+lv;
     var secs=PANELS[lv]||[];
-    var html=buildPanelHTML(secs,'desk');
-
-    // Desktop
-    if(deskContainer){
-      var pDiv=document.createElement('div');
-      pDiv.className='lv-panel'+(lv===1?' active':'');
-      pDiv.id='panel-'+lv;
-      pDiv.innerHTML=html;
-      deskContainer.appendChild(pDiv);
+    var html='';
+    for(var i=0;i<secs.length;i++){
+      var sec=secs[i];
+      html+='<div class="btn-section">'
+           +'<div class="btn-section-title">'
+           +'<i data-lucide="'+(sec.icon||'circle')+'"></i>'
+           +sec.title
+           +'</div>';
+      for(var j=0;j<sec.btns.length;j++){
+        var b=sec.btns[j];
+        html+='<button class="txn-btn" onclick="go(\''+b[0]+'\')">'
+             +'<span>'+b[1]+'</span>'
+             +(b[2]?'<span class="amt">'+b[2]+'</span>':'')
+             +'</button>';
+      }
+      html+='</div>';
     }
-
-    // Mobile drawer
-    if(mobContainer){
-      var mDiv=document.createElement('div');
-      mDiv.className='lv-panel drawer-lv-panel'+(lv===1?' active':'');
-      mDiv.id='drawer-panel-'+lv;
-      mDiv.innerHTML=html;
-      mobContainer.appendChild(mDiv);
-    }
+    panelDiv.innerHTML=html;
+    container.appendChild(panelDiv);
   }
 
+  // Lucide アイコンを SVG に変換
   if(typeof lucide!=='undefined') lucide.createIcons();
 }
 
 // =====================================================
 // INIT
 // =====================================================
-buildPanels();
-switchLevel(1);
-renderAll();
+
+// =====================================================
+// MOBILE DRAWER
+// =====================================================
+function openDrawer() {
+  // サイドバーのパネルをドロワーにコピー
+  var src = document.getElementById('panels-container');
+  var dst = document.getElementById('drawer-panels-container');
+  dst.innerHTML = src.innerHTML;
+
+  // ドロワー内のボタンにイベントを再設定
+  dst.querySelectorAll('.txn-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var onclick = btn.getAttribute('onclick');
+    if (onclick) {
+      try {
+        eval(onclick);
+      } catch(e) {
+        console.error(e);
+      }
+      closeDrawer();
+    }
+  });
+}); // ← forEachの閉じ括弧
+
+  // レベル情報バーをドロワーにも反映
+  var meta = LV_META[currentLv];
+  var info = document.getElementById('drawer-lv-info');
+  if (meta) {
+    info.style.background = meta.color;
+    info.textContent = meta.name + '  —  ' + meta.desc;
+  }
+
+  // ドロワー内のセレクトボックスを現在レベルに合わせる
+  document.getElementById('lv-select-mob').value = currentLv;
+
+  document.getElementById('mob-drawer').classList.add('open');
+  document.getElementById('mob-overlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  // Lucide アイコン再生成
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function closeDrawer() {
+  document.getElementById('mob-drawer').classList.remove('open');
+  document.getElementById('mob-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// =====================================================
+// MOBILE STATEMENT TABS
+// =====================================================
+function switchStmt(tab) {
+  ['bs', 'pl', 'cf'].forEach(function(t) {
+    document.getElementById('card-' + t).classList.remove('mob-active');
+    document.getElementById('tab-' + t).classList.remove('active');
+  });
+  document.getElementById('card-' + tab).classList.add('mob-active');
+  document.getElementById('tab-' + tab).classList.add('active');
+}
+
+// =====================================================
+// ASSIST MODE
+// =====================================================
+var assistMode = false;
+var pendingKey = null;
+
+function toggleAssistMode() {
+  assistMode = !assistMode;
+  var toggle = document.getElementById('assist-toggle');
+  var label = document.getElementById('assist-label');
+  var mobBtn = document.getElementById('mob-assist-btn');
+  if (assistMode) {
+    if(toggle) toggle.classList.add('on');
+    if(label) label.textContent = '補助モード ON';
+    if(mobBtn) {
+      mobBtn.style.background = 'var(--sage)';
+      mobBtn.style.color = '#fff';
+      mobBtn.style.border = 'none';
+    }
+  } else {
+    if(toggle) toggle.classList.remove('on');
+    if(label) label.textContent = '補助モード OFF';
+    if(mobBtn) {
+      mobBtn.style.background = 'var(--bg2)';
+      mobBtn.style.color = 'var(--text3)';
+      mobBtn.style.border = '1px solid var(--border)';
+    }
+  }
+}
+
+function handleModalOverlayClick(e) {
+  if (e.target === document.getElementById('assist-modal-overlay')) {
+    closeModal();
+  }
+}
+
+function closeModal() {
+  document.getElementById('assist-modal-overlay').classList.remove('open');
+  pendingKey = null;
+}
+
+function execPending() {
+  if (pendingKey) {
+    var key = pendingKey;
+    pendingKey = null;
+    execute(key);  // go()ではなくexecute()を直接呼ぶ（二重モーダル防止）
+  }
+  closeModal();
+  closeDrawer();
+}
+
+// =====================================================
+// DUPONT
+// =====================================================
+function updateDuPont() {
+  var cv = C(S);
+  var npm = S.sales > 0 ? cv.ni / S.sales : 0;
+  var tat = cv.totA > 0 ? S.sales / cv.totA : 0;
+  var lev = cv.totEq > 0 ? cv.totA / cv.totEq : 0;
+  var roe = cv.totEq > 0 ? cv.ni / cv.totEq : 0;
+
+  function setDP(id, val, suffix) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    if (S.sales === 0) { el.textContent = '—'; el.className = 'dp-val'; return; }
+    el.textContent = (val * 100).toFixed(1) + suffix;
+    el.className = 'dp-val ' + (val > 0 ? 'val-pos' : val < 0 ? 'val-neg' : 'val-zero');
+  }
+  setDP('dp-npm', npm, '%');
+  setDP('dp-tat', tat, 'x');
+  setDP('dp-lev', lev, 'x');
+  setDP('dp-roe', roe, '%');
+
+  var roeEl = document.getElementById('k-roe');
+  var roaEl = document.getElementById('k-roa');
+  if (roeEl) {
+    roeEl.textContent = cv.totEq > 0 ? (roe * 100).toFixed(1) + '%' : '—';
+    roeEl.className = 'kpi-val' + (roe > 0 ? ' pos' : roe < 0 ? ' neg' : '');
+  }
+  if (roaEl) {
+    var roa = cv.totA > 0 ? cv.ni / cv.totA : 0;
+    roaEl.textContent = cv.totA > 0 ? (roa * 100).toFixed(1) + '%' : '—';
+    roaEl.className = 'kpi-val' + (roa > 0 ? ' pos' : roa < 0 ? ' neg' : '');
+  }
+}
+
+// =====================================================
+// INIT
+// =====================================================
+document.addEventListener('DOMContentLoaded', function() {
+  buildPanels();
+  switchLevel(1);
+  renderAll();
+  updateDuPont();
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+});

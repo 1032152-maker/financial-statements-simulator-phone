@@ -124,6 +124,221 @@ table.stmt-tbl td:last-child{text-align:right;font-family:'JetBrains Mono',monos
 .val-zero{color:var(--text3);}
 .indent1{padding-left:14px!important;}
 
+/* ── DuPont ── */
+#dupont-section{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--radius2);
+  overflow:hidden;
+  margin-bottom:8px;
+}
+.dupont-head{
+  padding:7px 12px;
+  background:var(--bg2);
+  border-bottom:1px solid var(--border);
+}
+.dupont-head-title{
+  font-size:10px;font-weight:700;color:var(--text2);letter-spacing:.04em;
+}
+.dupont-head-sub{
+  font-size:9px;color:var(--text3);margin-top:1px;
+  font-family:'JetBrains Mono',monospace;
+}
+#dupont-body{
+  padding:10px 12px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.dp-block{
+  flex:1;min-width:90px;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:8px 10px;
+  text-align:center;
+}
+.dp-block.dp-result{
+  border-color:var(--navy);
+  background:rgba(42,74,124,.07);
+}
+.dp-label{
+  font-size:9.5px;color:var(--text3);
+  letter-spacing:.04em;margin-bottom:3px;font-weight:600;
+}
+.dp-val{
+  font-family:'JetBrains Mono',monospace;font-size:17px;
+  font-weight:600;color:var(--text);
+  margin-bottom:2px;
+}
+.dp-val.val-pos{color:var(--up);}
+.dp-val.val-neg{color:var(--down);}
+.dp-val.val-zero{color:var(--text3);}
+.dp-sub{font-size:9px;color:var(--text3);}
+.dp-op{
+  font-size:16px;color:var(--text3);
+  flex-shrink:0;padding:0 2px;font-weight:300;
+}
+@media(max-width:767px){
+  #dupont-body{gap:4px;}
+  .dp-block{min-width:72px;padding:7px 6px;}
+  .dp-val{font-size:14px;}
+  .dp-op{font-size:13px;}
+}
+
+/* ── ASSIST TOGGLE ── */
+.assist-toggle{
+  display:flex;align-items:center;gap:7px;cursor:pointer;
+  padding:4px 10px;border:1px solid var(--border);
+  border-radius:5px;background:transparent;
+  transition:border-color .15s, background .15s;
+  font-family:'Noto Sans JP',sans-serif;
+  min-height:32px;
+}
+.assist-toggle:hover{background:var(--bg2);border-color:var(--border2);}
+.assist-toggle.on{border-color:var(--sage);background:rgba(62,112,104,.06);}
+.assist-label{
+  font-size:11px;font-weight:500;color:var(--text3);
+  white-space:nowrap;transition:color .15s;
+}
+.assist-toggle.on .assist-label{color:var(--sage);}
+.assist-switch{
+  width:30px;height:17px;border-radius:9px;
+  background:var(--border2);position:relative;
+  transition:background .2s;flex-shrink:0;
+}
+.assist-toggle.on .assist-switch{background:var(--sage);}
+.assist-knob{
+  position:absolute;top:2px;left:2px;
+  width:13px;height:13px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);
+  transition:transform .2s cubic-bezier(.4,0,.2,1);
+}
+.assist-toggle.on .assist-knob{transform:translateX(13px);}
+
+/* ── ASSIST MODAL ── */
+.modal-overlay{
+  position:fixed;inset:0;z-index:500;
+  background:rgba(26,37,53,.48);
+  -webkit-backdrop-filter:blur(3px);
+  backdrop-filter:blur(3px);
+  display:flex;align-items:center;justify-content:center;
+  padding:16px;
+  opacity:0;pointer-events:none;
+  transition:opacity .22s;
+}
+.modal-overlay.open{opacity:1;pointer-events:all;}
+.modal-box{
+  background:var(--surface);
+  border-radius:var(--radius2);
+  width:min(540px,90vw);
+  max-height:90vh;
+  display:flex;flex-direction:column;
+  box-shadow:0 8px 40px rgba(0,0,0,.22);
+  transform:translateY(14px);
+  transition:transform .25s cubic-bezier(.4,0,.2,1);
+}
+.modal-overlay.open .modal-box{transform:translateY(0);}
+.modal-head{
+  padding:13px 16px 11px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;
+}
+.modal-title{font-size:14px;font-weight:700;color:var(--text);}
+.modal-tag{
+  font-size:9px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--sage);
+  background:rgba(62,112,104,.1);
+  padding:2px 7px;border-radius:3px;
+}
+.modal-scroll{
+  flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  max-height:70vh;padding:14px 16px;
+  display:flex;flex-direction:column;gap:12px;
+}
+/* Block 1: 仕訳 */
+.mod-jnl{
+  background:var(--surface2);border:1px solid var(--border);
+  border-left:3px solid var(--sage);border-radius:var(--radius);
+  padding:10px 13px;
+}
+.mod-blk-lbl{
+  font-size:9px;font-weight:700;color:var(--text3);
+  text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;
+}
+.mod-jnl-entry{
+  font-family:'JetBrains Mono',monospace;font-size:12.5px;
+  line-height:1.6;
+}
+.mod-dr{color:var(--up);font-weight:600;}
+.mod-cr{color:var(--down);font-weight:600;}
+/* Block 2: なぜ */
+.mod-why{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:10px 13px;
+}
+.mod-why-txt{font-size:12px;color:var(--text2);line-height:1.7;}
+/* Block 3: 三表影響 */
+.mod-impact{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:10px 13px;
+}
+.mod-impact-row{
+  display:flex;align-items:baseline;gap:8px;
+  padding:3px 0;font-size:12px;
+  border-bottom:1px solid var(--border);
+}
+.mod-impact-row:last-child{border-bottom:none;}
+.mod-impact-key{
+  font-size:9px;font-weight:700;
+  color:#fff;border-radius:3px;padding:1px 6px;
+  flex-shrink:0;letter-spacing:.04em;
+}
+.mod-impact-key.bs{background:var(--sage);}
+.mod-impact-key.pl{background:var(--navy);}
+.mod-impact-key.cf{background:var(--umber);}
+.mod-impact-val{color:var(--text2);line-height:1.5;}
+.mod-impact-val.ipos{color:var(--up);font-weight:500;}
+.mod-impact-val.ineg{color:var(--down);font-weight:500;}
+.mod-impact-val.inone{color:var(--text3);}
+/* Block 4: 実務ポイント */
+.mod-tip{
+  background:rgba(62,112,104,.06);
+  border:1px solid rgba(62,112,104,.2);
+  border-radius:var(--radius);padding:10px 13px;
+}
+.mod-tip-txt{font-size:12px;color:var(--text2);line-height:1.7;}
+.mod-tip-txt b{color:var(--sage);}
+/* Footer */
+.modal-foot{
+  padding:11px 16px;border-top:1px solid var(--border);
+  display:flex;gap:8px;justify-content:flex-end;
+  flex-shrink:0;
+}
+.mod-btn-cancel{
+  background:transparent;border:1px solid var(--border);
+  color:var(--text2);padding:7px 16px;border-radius:6px;
+  cursor:pointer;font-size:12px;font-weight:500;
+  font-family:'Noto Sans JP',sans-serif;transition:all .15s;
+  min-height:36px;
+}
+.mod-btn-cancel:hover{background:var(--bg2);}
+.mod-btn-exec{
+  background:var(--sage);border:none;
+  color:#fff;padding:7px 18px;border-radius:6px;
+  cursor:pointer;font-size:12px;font-weight:700;
+  font-family:'Noto Sans JP',sans-serif;transition:background .15s;
+  min-height:36px;
+  box-shadow:0 2px 8px rgba(62,112,104,.35);
+}
+.mod-btn-exec:hover{background:var(--sage-dark,#2c5550);}
+@media(max-width:767px){
+  .modal-scroll{max-height:60vh;padding:10px 12px;gap:8px;}
+  .modal-foot{padding:9px 12px;}
+}
+
 /* ── LOG ── */
 .log-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:9px 13px;}
 .log-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
@@ -324,6 +539,19 @@ table.stmt-tbl td:last-child{text-align:right;font-family:'JetBrains Mono',monos
 </head>
 <body>
 
+<!-- ━━ TOP NAV ━━ -->
+<nav style="background:var(--surface);border-bottom:1px solid var(--border);padding:0 16px;display:flex;align-items:center;gap:0;overflow-x:auto;scrollbar-width:none;position:sticky;top:0;z-index:101;box-shadow:var(--shadow);">
+  <div style="font-size:13px;font-weight:700;color:var(--sage);display:flex;align-items:center;gap:5px;padding:10px 16px 10px 0;border-right:1px solid var(--border);margin-right:8px;white-space:nowrap;flex-shrink:0;">
+    <i data-lucide="bar-chart-3" style="width:15px;height:15px;stroke-width:2;"></i>FinSim
+  </div>
+  <a href="index.html" style="display:flex;align-items:center;gap:5px;padding:12px 12px;font-size:12px;font-weight:700;color:var(--sage);text-decoration:none;border-bottom:2px solid var(--sage);white-space:nowrap;flex-shrink:0;">
+    <i data-lucide="table-2" style="width:13px;height:13px;stroke-width:2;"></i>財務三表
+  </a>
+  <a href="finance.html" style="display:flex;align-items:center;gap:5px;padding:12px 12px;font-size:12px;font-weight:500;color:var(--text3);text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap;flex-shrink:0;">
+    <i data-lucide="trending-up" style="width:13px;height:13px;stroke-width:2;opacity:.8;"></i>コーポレートファイナンス
+  </a>
+</nav>
+
 <!-- ━━ HEADER ━━ -->
 <div class="header">
   <div class="header-top">
@@ -331,9 +559,15 @@ table.stmt-tbl td:last-child{text-align:right;font-family:'JetBrains Mono',monos
       <span class="app-title"><i data-lucide="bar-chart-3"></i>財務三表</span>
       <span class="period-chip" id="period-chip">第1期</span>
     </div>
-    <button class="btn-reset desk-only" onclick="resetAll()">
-      <i data-lucide="rotate-ccw"></i>リセット
-    </button>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="assist-toggle desk-only" id="assist-toggle" onclick="toggleAssistMode()">
+        <span class="assist-label" id="assist-label">補助モード OFF</span>
+        <div class="assist-switch"><div class="assist-knob"></div></div>
+      </div>
+      <button class="btn-reset desk-only" onclick="resetAll()">
+        <i data-lucide="rotate-ccw"></i>リセット
+      </button>
+    </div>
   </div>
   <div class="kpi-row">
     <div class="kpi"><div class="kpi-label">総資産</div><div class="kpi-val" id="kpi-ta">¥10,000</div></div>
@@ -342,6 +576,8 @@ table.stmt-tbl td:last-child{text-align:right;font-family:'JetBrains Mono',monos
     <div class="kpi"><div class="kpi-label">現金</div><div class="kpi-val" id="kpi-cash">¥10,000</div></div>
     <div class="kpi"><div class="kpi-label">自己資本比率</div><div class="kpi-val" id="kpi-er">100.0%</div></div>
     <div class="kpi"><div class="kpi-label">利益剰余金</div><div class="kpi-val" id="kpi-re">—</div></div>
+    <div class="kpi"><div class="kpi-label">ROE</div><div class="kpi-val" id="k-roe">—</div></div>
+    <div class="kpi"><div class="kpi-label">ROA</div><div class="kpi-val" id="k-roa">—</div></div>
   </div>
 </div>
 
@@ -410,6 +646,38 @@ table.stmt-tbl td:last-child{text-align:right;font-family:'JetBrains Mono',monos
       </div>
     </div>
 
+    <div id="dupont-section">
+      <div class="dupont-head">
+        <div class="dupont-head-title">収益性分析 — デュポン分解</div>
+        <div class="dupont-head-sub">ROE = 利益率 × 資産回転率 × 財務レバレッジ</div>
+      </div>
+      <div id="dupont-body">
+        <div class="dp-block">
+          <div class="dp-label">当期純利益率</div>
+          <div class="dp-val" id="dp-npm">—</div>
+          <div class="dp-sub">NI ÷ 売上高</div>
+        </div>
+        <div class="dp-op">×</div>
+        <div class="dp-block">
+          <div class="dp-label">総資産回転率</div>
+          <div class="dp-val" id="dp-tat">—</div>
+          <div class="dp-sub">売上高 ÷ 総資産</div>
+        </div>
+        <div class="dp-op">×</div>
+        <div class="dp-block">
+          <div class="dp-label">財務レバレッジ</div>
+          <div class="dp-val" id="dp-lev">—</div>
+          <div class="dp-sub">総資産 ÷ 純資産</div>
+        </div>
+        <div class="dp-op">=</div>
+        <div class="dp-block dp-result">
+          <div class="dp-label">ROE</div>
+          <div class="dp-val" id="dp-roe">—</div>
+          <div class="dp-sub">純利益 ÷ 純資産</div>
+        </div>
+      </div>
+    </div>
+
     <div class="wc-bar">
       <div class="wc-title">運転資本管理</div>
       <div class="wc-metrics">
@@ -455,7 +723,10 @@ table.stmt-tbl td:last-child{text-align:right;font-family:'JetBrains Mono',monos
   <button class="mob-txn-btn" onclick="openDrawer()">
     <i data-lucide="layers"></i>取引する
   </button>
-  <span class="mob-status" id="mob-status">均衡</span>
+  <button class="mob-txn-btn" onclick="toggleAssistMode()" id="mob-assist-btn"
+    style="flex:0.5;font-size:11px;background:var(--bg2);color:var(--text3);border:1px solid var(--border);box-shadow:none;">
+    <i data-lucide="book-open"></i>補助
+  </button>
   <button class="mob-reset-btn" onclick="resetAll()"><i data-lucide="rotate-ccw"></i></button>
 </div>
 
@@ -483,6 +754,53 @@ table.stmt-tbl td:last-child{text-align:right;font-family:'JetBrains Mono',monos
   </div>
   <div class="drawer-lv-info" id="drawer-lv-info" style="background:var(--sage)"></div>
   <div class="drawer-scroll" id="drawer-panels-container"></div>
+</div>
+
+<!-- ━━ ASSIST MODAL ━━ -->
+<div class="modal-overlay" id="assist-modal-overlay" onclick="handleModalOverlayClick(event)">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <span class="modal-title" id="mod-title">—</span>
+      <span class="modal-tag">補助モード</span>
+    </div>
+    <div class="modal-scroll">
+      <!-- Block 1: 仕訳 -->
+      <div class="mod-jnl">
+        <div class="mod-blk-lbl">仕訳</div>
+        <div class="mod-jnl-entry" id="mod-jnl"></div>
+      </div>
+      <!-- Block 2: なぜこの仕訳？ -->
+      <div class="mod-why">
+        <div class="mod-blk-lbl">なぜこの仕訳？</div>
+        <div class="mod-why-txt" id="mod-why"></div>
+      </div>
+      <!-- Block 3: 財務三表への影響 -->
+      <div class="mod-impact">
+        <div class="mod-blk-lbl">財務三表への影響</div>
+        <div class="mod-impact-row">
+          <span class="mod-impact-key bs">BS</span>
+          <span class="mod-impact-val" id="mod-bs"></span>
+        </div>
+        <div class="mod-impact-row">
+          <span class="mod-impact-key pl">PL</span>
+          <span class="mod-impact-val" id="mod-pl"></span>
+        </div>
+        <div class="mod-impact-row">
+          <span class="mod-impact-key cf">CF</span>
+          <span class="mod-impact-val" id="mod-cf"></span>
+        </div>
+      </div>
+      <!-- Block 4: 実務ポイント -->
+      <div class="mod-tip">
+        <div class="mod-blk-lbl">実務ポイント</div>
+        <div class="mod-tip-txt" id="mod-tip"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="mod-btn-cancel" onclick="closeModal()">キャンセル</button>
+      <button class="mod-btn-exec" onclick="execPending()">この取引を実行する</button>
+    </div>
+  </div>
 </div>
 
 <script src="app.js"></script>
