@@ -325,12 +325,6 @@ table.bs-impact td:first-child{font-family:'Noto Sans JP',sans-serif;font-size:1
 table.bs-impact tr:last-child td{border-bottom:none;font-weight:700;background:var(--bg2);}
 .divider{height:1px;background:var(--border);margin:12px 0;}
 .placeholder{text-align:center;color:var(--text3);padding:20px;font-size:12px;}
-.wacc-flash{animation:waccFlash .5s ease;}
-@keyframes waccFlash{
-  0%{box-shadow:0 0 0 0 rgba(42,74,124,.4);}
-  50%{box-shadow:0 0 0 8px rgba(42,74,124,.15);}
-  100%{box-shadow:none;}
-}
 
 /* ─────────────────────────────
    MOBILE
@@ -419,16 +413,18 @@ table.bs-impact tr:last-child td{border-bottom:none;font-weight:700;background:v
           <div class="input-row"><input type="number" id="size-prem" value="0" step="0.5" min="0" max="10"><div class="unit">%</div></div>
         </div>
       </div>
-      <div class="result-grid" style="grid-template-columns:repeat(3,1fr)">
-        <div class="rc"><div class="rc-lbl">Rf（リスクフリー）</div><div class="rc-val" id="cr-rf">—</div></div>
-        <div class="rc"><div class="rc-lbl">β × (Rm−Rf)</div><div class="rc-val" id="cr-beta-mrp">—</div></div>
-        <div class="rc hl"><div class="rc-lbl">Ke（株主資本コスト）</div><div class="rc-val navy" id="cr-ke">—</div></div>
-      </div>
-      <div class="insight">
-        <div class="insight-ttl">CAPM とは</div>
-        <div class="insight-txt">
-          <b>Ke = Rf + β×(Rm−Rf)</b>。ベータが高いほど市場と連動しやすく、リスクが高いと見なされ株主が要求するリターンが上がります。
-          日本の成熟企業で β≈0.8〜1.2、ベンチャー系で β≈1.5〜2.5 程度が目安です。
+      <div id="capm-result-block" style="display:none">
+        <div class="result-grid" style="grid-template-columns:repeat(3,1fr)">
+          <div class="rc"><div class="rc-lbl">Rf（リスクフリー）</div><div class="rc-val" id="cr-rf">—</div></div>
+          <div class="rc"><div class="rc-lbl">β × (Rm−Rf)</div><div class="rc-val" id="cr-beta-mrp">—</div></div>
+          <div class="rc hl"><div class="rc-lbl">Ke（株主資本コスト）</div><div class="rc-val navy" id="cr-ke">—</div></div>
+        </div>
+        <div class="insight">
+          <div class="insight-ttl">CAPM とは</div>
+          <div class="insight-txt">
+            <b>Ke = Rf + β×(Rm−Rf)</b>。ベータが高いほど市場と連動しやすく、リスクが高いと見なされ株主が要求するリターンが上がります。
+            日本の成熟企業で β≈0.8〜1.2、ベンチャー系で β≈1.5〜2.5 程度が目安です。
+          </div>
         </div>
       </div>
     </div>
@@ -466,28 +462,30 @@ table.bs-impact tr:last-child td{border-bottom:none;font-weight:700;background:v
         </div>
       </div>
 
-      <div class="wacc-bar" id="wacc-bar">
-        <div class="wb"><div class="wb-lbl">Ke × E/V</div><div class="wb-val" id="wb-e">—</div></div>
-        <div class="wb-op">+</div>
-        <div class="wb"><div class="wb-lbl">Kd×(1−T) × D/V</div><div class="wb-val" id="wb-d">—</div></div>
-        <div class="wb-op">=</div>
-        <div class="wb hl"><div class="wb-lbl">WACC</div><div class="wb-val" id="wb-wacc" style="font-size:22px">—</div></div>
-      </div>
+      <div id="wacc-result-block" style="display:none">
+        <div class="wacc-bar" id="wacc-bar">
+          <div class="wb"><div class="wb-lbl">Ke × E/V</div><div class="wb-val" id="wb-e">—</div></div>
+          <div class="wb-op">+</div>
+          <div class="wb"><div class="wb-lbl">Kd×(1−T) × D/V</div><div class="wb-val" id="wb-d">—</div></div>
+          <div class="wb-op">=</div>
+          <div class="wb hl"><div class="wb-lbl">WACC</div><div class="wb-val" id="wb-wacc" style="font-size:22px">—</div></div>
+        </div>
 
-      <div class="result-grid" style="margin-top:10px;grid-template-columns:repeat(4,1fr)">
-        <div class="rc"><div class="rc-lbl">Ke（株主資本コスト）</div><div class="rc-val navy" id="wr-ke">—</div></div>
-        <div class="rc"><div class="rc-lbl">Kd 税後（負債コスト）</div><div class="rc-val" id="wr-kd-at">—</div></div>
-        <div class="rc"><div class="rc-lbl">D/V（負債比率）</div><div class="rc-val" id="wr-dv">—</div></div>
-        <div class="rc hl"><div class="rc-lbl">WACC</div><div class="rc-val navy" id="wr-wacc">—</div></div>
-      </div>
+        <div class="result-grid" style="margin-top:10px;grid-template-columns:repeat(4,1fr)">
+          <div class="rc"><div class="rc-lbl">Ke（株主資本コスト）</div><div class="rc-val navy" id="wr-ke">—</div></div>
+          <div class="rc"><div class="rc-lbl">Kd 税後（負債コスト）</div><div class="rc-val" id="wr-kd-at">—</div></div>
+          <div class="rc"><div class="rc-lbl">D/V（負債比率）</div><div class="rc-val" id="wr-dv">—</div></div>
+          <div class="rc hl"><div class="rc-lbl">WACC</div><div class="rc-val navy" id="wr-wacc">—</div></div>
+        </div>
 
-      <div class="insight">
-        <div class="insight-ttl">WACCの意味と使い方</div>
-        <div class="insight-txt">
-          WACCは「資金調達のコスト」であり、投資のハードルレートです。
-          <b>ROIC &gt; WACC なら企業価値を創造</b>し、ROIC &lt; WACC なら価値を毀損します。
-          負債には<b>節税効果（タックスシールド）</b>があるため、適度な借入はWACCを引き下げます。
-          ただし過剰な借入は財務リスクを高め、Ke・Kdの上昇を招きます。
+        <div class="insight">
+          <div class="insight-ttl">WACCの意味と使い方</div>
+          <div class="insight-txt">
+            WACCは「資金調達のコスト」であり、投資のハードルレートです。
+            <b>ROIC &gt; WACC なら企業価値を創造</b>し、ROIC &lt; WACC なら価値を毀損します。
+            負債には<b>節税効果（タックスシールド）</b>があるため、適度な借入はWACCを引き下げます。
+            ただし過剰な借入は財務リスクを高め、Ke・Kdの上昇を招きます。
+          </div>
         </div>
       </div>
     </div>
@@ -811,11 +809,9 @@ function calcWACC(){
   document.getElementById('tax-r').value=document.getElementById('taxrate').value;
   document.getElementById('ev-r').value=document.getElementById('ev-ratio').value;
 
-  // フラッシュフィードバック
-  var bar=document.getElementById('wacc-bar');
-  bar.classList.remove('wacc-flash');
-  void bar.offsetWidth;
-  bar.classList.add('wacc-flash');
+  // 結果ブロックを表示
+  document.getElementById('capm-result-block').style.display='block';
+  document.getElementById('wacc-result-block').style.display='block';
 
   return wacc;
 }
@@ -1074,7 +1070,6 @@ function calcMA(){
 }
 
 /* ─────── INIT ─────── */
-calcWACC();
 if(typeof lucide!=='undefined') lucide.createIcons();
 </script>
 </body>
